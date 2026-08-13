@@ -1,0 +1,708 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titling}
+
+\makeatletter
+\newcommand{\BvrSetLabInstructor}[1]{%
+  \gdef\Bvr@LabInstructor{#1}}
+\newcommand{\Bvr@LabInstructor}{Dr. Paramveer Kaur}
+\newcommand{\BvrLabInstructorValue}{\Bvr@LabInstructor}
+\makeatother
+
+\pretitle{\begin{center}\bfseries\fontsize{18bp}{18bp}\selectfont}
+
+\makeatletter
+\newcommand{\BvrSubtitle}[1]{%
+  \posttitle{%
+    \par\end{center}
+    \begin{center}\large#1\end{center}
+    \vskip 0.5em}%
+}
+\makeatother
+
+\newcommand{\BvrHint}[1]{%
+  {\normalfont\normalsize\itshape\hfill #1}}
+
+\title{Uber Lite Ride Sharing System}
+
+\BvrSetLabInstructor{Dr. Paramveer Kaur}
+
+\BvrSubtitle{%
+  Project Proposal for UCS503P  \\
+  Submitted to: \BvrLabInstructorValue \\ \bfseries
+  Thapar Institute of Engineering and Technology%
+}
+
+\author{
+  Ayush, CSED \\
+  Roll No: \texttt{1024030740}, Email: \texttt{aayush\_be24@thapar.edu}
+  \and
+  Gurleen Kaur, CSED \\
+  Roll No: \texttt{1024030325}, Email: \texttt{gkaur6\_be24@thapar.edu}
+  \and
+  Anshika, CSED \\
+  Roll No: \texttt{1024030749}, Email: \texttt{aanshika\_be24@thapar.edu}
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+
+\section{Higher-order goal%
+  \BvrHint{\ldots secondary framing}}
+
+This project aims to improve the accessibility and efficiency of
+urban ride-sharing by reducing the time, cost, and effort required
+for users to find and book a suitable ride. The broader goal is to
+provide a lightweight and practical transportation system that
+connects passengers with available drivers while maintaining a
+simple and responsive user experience.
+
+The immediate engineering objective is to translate the core
+ride-sharing workflow---from requesting a ride to matching a driver
+and completing the trip---into a measurable and deployable C++-based
+software solution. The system will focus on practical aspects such as
+location-based driver matching, ride booking, fare estimation,
+trip-status management, authentication, and reliable communication
+through REST APIs.
+
+
+\section{Time-to-value%
+  \BvrHint{\ldots primary heuristic}}
+
+\begin{itemize}[leftmargin=0.7cm]
+
+    \item We will deliver meaningful functionality quickly by
+    prototyping the core ride-booking workflow first: user
+    registration, authentication, ride request, driver matching,
+    booking confirmation, and ride-status updates.
+
+    \item We will prioritize fast feedback over unnecessary
+    complexity by implementing the system in short iterations,
+    validating the main passenger and driver workflows early, and
+    improving the system based on testing results.
+
+    \item The first iteration will focus on a working end-to-end
+    ride-sharing workflow rather than advanced features. This allows
+    the project to demonstrate measurable value early while leaving
+    room for later improvements such as optimized driver matching,
+    improved data structures, fare adjustments, and support for
+    multiple concurrent ride requests.
+
+    \item Success will be defined by what can be delivered and
+    measured in the first iteration: a user should be able to
+    authenticate, request a ride, the system should identify an
+    appropriate available driver, and the ride should progress
+    through clearly defined states.
+
+\end{itemize}
+
+
+\section{Problem Statement}
+
+Traditional transportation services can be inconvenient and difficult
+to manage when users have to search for available vehicles, contact
+drivers manually, and coordinate ride details through separate
+channels. Users may also face difficulties in knowing whether a
+driver is available, tracking the status of a ride request, and
+estimating the expected fare before or during a trip.
+
+The main problems addressed by UberLite include:
+
+\begin{itemize}
+
+    \item \textbf{Difficulty in finding available drivers:} Users may
+    have to manually search for or contact drivers, leading to delays
+    in booking a ride.
+
+    \item \textbf{Lack of centralized ride management:} Ride
+    requests, driver availability, and ride details are difficult to
+    manage without a unified platform.
+
+    \item \textbf{Limited ride status visibility:} Users may not have
+    clear information about whether a ride is requested, accepted,
+    in progress, or completed.
+
+    \item \textbf{Uncertainty in ride information:} Users may not have
+    a simple way to view important ride details such as pickup
+    location, destination, driver information, and estimated fare.
+
+    \item \textbf{Manual management of ride requests:} Handling
+    bookings and updating ride information manually can result in
+    delays, inconsistencies, and errors.
+
+\end{itemize}
+
+These issues create the need for a simple and centralized system that
+can manage the basic interaction between passengers and drivers while
+providing clear ride information and status updates. UberLite
+addresses this need through a lightweight digital platform for
+requesting, matching, and managing rides.
+
+
+\section{Proposed Solution}
+
+\textit{...Software Proposition}
+
+\subsection{Overview}
+
+Build a lightweight C++-based ride-sharing backend that exposes
+REST APIs for passengers and drivers. The system will provide the
+following core functionality:
+
+\begin{itemize}
+
+    \item \textbf{User registration and authentication:} Passengers
+    and drivers can register and authenticate before accessing
+    role-specific functionality.
+
+    \item \textbf{Ride request module:} Passengers can provide pickup
+    and destination locations and submit a ride request through the
+    available API.
+
+    \item \textbf{Driver availability and matching:} The system
+    maintains driver availability and matches ride requests with
+    suitable available drivers based on location.
+
+    \item \textbf{Ride management workflow:} Drivers can accept or
+    reject ride requests and update the ride status throughout the
+    journey.
+
+    \item \textbf{Fare estimation and calculation:} The system
+    calculates an estimated and final fare using predefined pricing
+    rules based on ride-related information.
+
+    \item \textbf{Ride status tracking:} The system maintains the
+    current status of each ride, such as Requested, Accepted,
+    In Progress, or Completed.
+
+    \item \textbf{Ride history:} Completed rides and their relevant
+    details are stored so that previous trips can be retrieved.
+
+\end{itemize}
+
+The backend will communicate through REST APIs and use structured
+JSON data for request and response handling. A lightweight client,
+Postman, Swagger, or a future frontend can be used to interact with
+and demonstrate the APIs.
+
+
+\subsection{Core Workflow}
+
+\begin{enumerate}
+
+    \item Passenger registers and authenticates with the system.
+
+    \item Passenger submits a ride request containing pickup and
+    destination information.
+
+    \item System validates the request and checks for available
+    drivers.
+
+    \item System identifies a suitable driver using the driver
+    matching mechanism.
+
+    \item Driver accepts or rejects the ride request.
+
+    \item Once accepted, the ride status changes from
+    \textit{Requested} to \textit{Accepted}.
+
+    \item Driver starts the trip and the ride status changes to
+    \textit{In Progress}.
+
+    \item Driver completes the trip and the system calculates the
+    final fare.
+
+    \item The completed ride is stored in the ride history.
+
+\end{enumerate}
+
+
+\subsection{Operational Constraints for an Educational Setting}
+
+\begin{itemize}
+
+    \item Keep the backend lightweight and suitable for deployment
+    on commonly available computing resources.
+
+    \item Focus on the essential ride-booking workflow rather than
+    replicating the complete functionality of commercial
+    ride-hailing platforms.
+
+    \item Use a modular C++ architecture so that individual
+    components can be tested and extended independently.
+
+    \item Use mature technologies and libraries rather than
+    developing infrastructure from scratch.
+
+    \item Avoid unnecessary dependence on complex external services
+    during the initial implementation.
+
+    \item Prioritize correctness, reliability, efficient data
+    management, and scalability of the core backend operations.
+
+\end{itemize}
+
+
+\section{Solution Approach}
+\BvrHint{\ldots Engineering focus}
+
+This is an engineering course project, so the focus will be on
+building a reliable, modular, and scalable C++ backend rather than
+developing novel algorithms. The implementation will prioritize the
+core passenger-driver workflow, efficient driver matching,
+well-defined ride-status transitions, secure API access, and
+incremental development.
+
+
+\subsection{Backend Architecture}
+\BvrHint{\ldots C++ REST-based solution}
+
+The system will use a modular C++ backend exposed through REST APIs.
+The major components will be separated according to their
+responsibilities:
+
+\begin{itemize}
+
+    \item \textbf{Authentication Module:} Handles user registration,
+    login, authentication, and role-based access for passengers and
+    drivers.
+
+    \item \textbf{Ride Management Module:} Creates ride requests,
+    manages ride information, and controls valid ride-status
+    transitions.
+
+    \item \textbf{Driver Management Module:} Maintains driver
+    availability, location information, and active ride assignments.
+
+    \item \textbf{Matching Module:} Searches for suitable available
+    drivers based on their location relative to the pickup point.
+
+    \item \textbf{Routing Module:} Calculates suitable routes and
+    travel distances between relevant locations using graph-based
+    pathfinding algorithms.
+
+    \item \textbf{Fare Module:} Calculates estimated and final fares
+    using predefined pricing rules.
+
+    \item \textbf{Data Management Module:} Handles persistent storage
+    and retrieval of users, drivers, rides, and ride history.
+
+\end{itemize}
+
+The C++ backend will expose these functionalities through REST
+endpoints, with JSON used for structured request and response data.
+
+
+\subsection{Driver Matching}
+\BvrHint{\ldots lightweight matching}
+
+Driver matching will initially use a simple location-based approach:
+
+\begin{itemize}
+
+    \item Maintain the availability and current location of
+    registered drivers.
+
+    \item When a passenger requests a ride, identify currently
+    available drivers.
+
+    \item Calculate or estimate the distance between the pickup
+    location and available drivers.
+
+    \item Prioritize the nearest suitable available driver.
+
+    \item Update the driver's availability after assignment so that
+    the same driver cannot be assigned to multiple active rides.
+
+\end{itemize}
+
+The initial implementation will use a straightforward distance-based
+matching strategy. The matching module will remain independent from
+the rest of the system so that it can later be optimized using more
+efficient search or spatial data structures.
+
+
+\subsection{Route and Distance Calculation}
+\BvrHint{\ldots path-based computation}
+
+The system will use graph-based path computation where required for
+estimating routes and travel distance between relevant locations.
+Dijkstra's algorithm or A* can be used depending on the final
+representation of the underlying road network.
+
+The calculated distance can be used by the fare calculation module
+and can also support driver-selection decisions. The routing
+component will remain separate from the ride-management logic so
+that it can be optimized independently as the system grows.
+
+
+\subsection{Ride Workflow Management}
+\BvrHint{\ldots controlled state transitions}
+
+The system will manage every ride through a clearly defined workflow:
+
+\begin{center}
+\textit{Requested} $\rightarrow$
+\textit{Accepted} $\rightarrow$
+\textit{In Progress} $\rightarrow$
+\textit{Completed}
+\end{center}
+
+Only valid state transitions will be permitted. This ensures that
+ride information remains consistent and prevents invalid operations,
+such as completing a ride that has not been accepted or started.
+
+
+\subsection{Data Management}
+\BvrHint{\ldots structured and persistent data}
+
+The system will maintain structured records for passengers, drivers,
+and rides. Data structures will be selected according to common
+operations such as searching for available drivers, updating driver
+status, creating rides, and retrieving ride history.
+
+PostgreSQL will be used as the relational database for persistent
+storage of users, drivers, rides, locations, fare details, and ride
+history. The database layer will be separated from the core
+ride-management logic so that storage-related changes do not require
+redesigning the complete application.
+
+JSON serialization and deserialization will be handled using
+\texttt{nlohmann/json}.
+
+
+\subsection{Authentication and Security}
+\BvrHint{\ldots secure API access}
+
+Authentication will be implemented so that passengers and drivers
+can access only the operations relevant to their roles.
+
+JWT-based token authentication will be used for API access, with
+OpenSSL providing appropriate cryptographic support where required.
+Input validation will be performed before processing requests to
+prevent invalid or inconsistent data from entering the system.
+
+
+\subsection{Fare Calculation}
+\BvrHint{\ldots deterministic pricing}
+
+The fare calculation will use a predefined pricing model rather than
+dynamic pricing. A simple model can be represented as:
+
+\[
+\text{Fare} =
+\text{Base Fare} +
+(\text{Distance} \times \text{Rate per km})
+\]
+
+The same calculation rules will be applied consistently so that fare
+estimates and final fares are predictable and easy to test.
+
+
+\section{Evaluation Criteria}
+\BvrHint{\ldots measurable and attributable}
+
+The success of UberLite will be evaluated using measurable metrics
+directly related to the core ride-booking workflow. The evaluation
+will focus on system correctness, efficiency, reliability, and
+backend performance rather than comparison with commercial
+ride-hailing platforms.
+
+
+\subsection{Primary Evaluation Metric}
+\BvrHint{\ldots ride request to driver assignment}
+
+\textbf{Driver Assignment Time (DAT):} The time taken between a
+passenger submitting a valid ride request and the system assigning
+an available driver.
+
+\begin{itemize}
+
+    \item \textbf{Target:} The median driver assignment time should
+    remain below a predefined threshold during testing.
+
+    \item \textbf{Measurement:} The metric will be calculated using
+    timestamps recorded when the ride request is created and when a
+    driver is successfully assigned.
+
+    \item \textbf{Attribution:} Both timestamps will be generated and
+    stored by the backend, allowing the metric to be measured directly
+    from system logs.
+
+\end{itemize}
+
+
+\subsection{Secondary Evaluation Metrics}
+
+\begin{itemize}
+
+    \item \textbf{Ride Request Success Rate:} Percentage of valid
+    ride requests that are successfully matched with an available
+    driver.
+
+    \item \textbf{Matching Accuracy:} Percentage of ride requests
+    for which the system selects the intended nearest or most
+    suitable available driver according to the defined matching rule.
+
+    \item \textbf{Fare Calculation Accuracy:} Percentage of test
+    rides for which the calculated fare matches the expected fare
+    according to the predefined pricing formula.
+
+    \item \textbf{Workflow Correctness:} Percentage of tested rides
+    that successfully follow the valid sequence of states from
+    \textit{Requested} to \textit{Accepted}, \textit{In Progress},
+    and finally \textit{Completed}.
+
+    \item \textbf{API Response Time:} Average time taken by important
+    backend operations such as authentication, ride creation,
+    driver matching, and ride-status updates.
+
+    \item \textbf{Reliability:} Percentage of test scenarios
+    completed without API failures, invalid state transitions,
+    inconsistent ride assignments, or system errors.
+
+\end{itemize}
+
+
+\subsection{Pilot Validation Plan}
+\BvrHint{\ldots high-level}
+
+The system will be validated using controlled test scenarios that
+represent the main passenger and driver workflows.
+
+\begin{itemize}
+
+    \item Test the system with multiple passenger and driver accounts
+    representing realistic ride-booking scenarios.
+
+    \item Measure driver assignment time for a set of ride requests
+    under different numbers of available drivers.
+
+    \item Test cases where drivers accept requests, reject requests,
+    or become unavailable before assignment.
+
+    \item Verify that invalid ride-status transitions are rejected by
+    the system.
+
+    \item Compare calculated fares against manually computed expected
+    values using the predefined fare formula.
+
+    \item Test API endpoints for valid requests, invalid input, and
+    unauthorized access.
+
+\end{itemize}
+
+The collected results will be used to identify performance issues,
+workflow errors, and reliability problems. Improvements will then be
+made iteratively based on the observed results.
+
+
+\section{Scalability}
+\BvrHint{\ldots with foresight}
+
+Although UberLite is initially developed as an academic C++ backend,
+the system will be designed to handle growth in users, drivers, and
+ride requests without requiring a complete redesign.
+
+\subsection{Efficient Driver Matching}
+\BvrHint{\ldots reducing unnecessary search}
+
+Driver matching is the main scalability concern. Instead of
+repeatedly checking every driver for every ride request, appropriate
+C++ data structures will be used to organize available drivers and
+reduce unnecessary search. The matching module will remain modular
+so that more efficient spatial search techniques can be introduced
+if the number of drivers increases significantly.
+
+\subsection{Data and Backend Scalability}
+\BvrHint{\ldots efficient operations}
+
+User, driver, and ride information will be stored in PostgreSQL with
+appropriate indexing for frequently queried fields. C++ data
+structures will be selected to support efficient driver searches,
+status updates, and ride management while avoiding unnecessary full
+scans and data copying.
+
+\subsection{Scalability Path}
+\BvrHint{\ldots prototype to larger system}
+
+The initial system will target a controlled academic environment.
+For larger deployments, scalability can be improved through more
+efficient driver-search structures, optimized database queries,
+better handling of concurrent ride requests, and multiple backend
+instances when required.
+
+
+\section{Technology and Engine Availability}
+\BvrHint{\ldots mature engineering components}
+
+UberLite will use a mature set of technologies and libraries that
+are well suited for implementing a C++-based backend and REST API
+system. These components allow the project to focus on ride-booking
+workflow, correctness, scalability, and evaluation rather than
+developing basic infrastructure from scratch.
+
+\begin{itemize}
+
+    \item \textbf{C++:} Used as the primary language for implementing
+    backend logic, data structures, algorithms, and core
+    ride-management functionality.
+
+    \item \textbf{Crow/Pistache:} Used as the C++ web framework for
+    implementing REST APIs and handling HTTP requests and responses.
+
+    \item \textbf{PostgreSQL:} Used as the relational database for
+    persistent storage of users, drivers, rides, locations, fare
+    details, and ride history.
+
+    \item \textbf{nlohmann/json:} Used for JSON serialization and
+    deserialization in API requests and responses.
+
+    \item \textbf{JWT and OpenSSL:} Used to support authentication
+    and secure handling of user credentials and tokens.
+
+    \item \textbf{CMake:} Used to manage the C++ build process and
+    project dependencies in a consistent manner.
+
+    \item \textbf{Postman:} Used to test and validate REST API
+    endpoints during development.
+
+    \item \textbf{Git/GitHub:} Used for version control,
+    collaborative development, and maintaining the project
+    repository.
+
+\end{itemize}
+
+These technologies provide a mature development environment for the
+project and allow the team to focus on the engineering aspects of
+UberLite, particularly efficient driver matching, ride workflow
+management, correctness, testing, and scalability.
+
+
+\section{Project Scope and Deliverables}
+
+The project will be developed incrementally, with the first iteration
+focused on implementing and demonstrating the complete core
+ride-booking workflow.
+
+\subsection{Initial Deliverable}
+\BvrHint{\ldots first iteration}
+
+\begin{itemize}
+
+    \item User registration and authentication for passengers and
+    drivers.
+
+    \item Ride request creation with pickup and destination
+    information.
+
+    \item Driver availability management and basic driver matching.
+
+    \item Ride workflow from \textit{Requested} to
+    \textit{Accepted}, \textit{In Progress}, and
+    \textit{Completed}.
+
+    \item Basic fare estimation and final fare calculation.
+
+    \item Route and distance calculation using the selected
+    pathfinding approach.
+
+    \item Persistent storage of users, drivers, rides, and ride
+    history.
+
+    \item REST API endpoints for the core system functionality.
+
+    \item Unit and integration testing of the main backend modules.
+
+\end{itemize}
+
+
+\subsection{Subsequent Deliverables}
+\BvrHint{\ldots iteration-friendly}
+
+\begin{itemize}
+
+    \item Improved driver-matching and search efficiency.
+
+    \item Enhanced handling of concurrent ride requests.
+
+    \item Improved ride-history search and filtering.
+
+    \item Additional validation, authentication, and security
+    improvements.
+
+    \item Performance testing and scalability evaluation.
+
+    \item Optional lightweight client or frontend for demonstrating
+    the backend APIs.
+
+\end{itemize}
+
+
+\section{Risks and Mitigations}
+
+\begin{itemize}
+
+    \item \textbf{Driver matching efficiency:} A simple search may
+    become inefficient as the number of drivers increases. This will
+    be addressed through appropriate data structures and a modular
+    matching component that can be optimized later.
+
+    \item \textbf{Concurrent ride requests:} Multiple requests may
+    attempt to assign the same driver. Driver availability will be
+    verified before assignment and updated immediately after a
+    successful assignment.
+
+    \item \textbf{Data consistency:} Invalid ride states or
+    inconsistent records may occur if operations are not validated.
+    The system will enforce defined ride-state transitions and
+    validate API inputs.
+
+    \item \textbf{Security:} Unauthorized users may attempt to access
+    restricted operations. JWT-based authentication and role-based
+    access control will be applied to relevant API endpoints.
+
+    \item \textbf{Evaluation ambiguity:} Performance and correctness
+    can be difficult to assess without clearly defined metrics.
+    Backend timestamps, test cases, and measurable evaluation
+    criteria will be established before final testing.
+
+    \item \textbf{Project complexity:} Adding too many commercial
+    ride-hailing features may make the project difficult to complete.
+    The initial implementation will remain focused on the core
+    ride-booking workflow.
+
+\end{itemize}
+
+
+\section{Summary}
+
+UberLite proposes a lightweight C++-based ride-sharing backend that
+provides the essential workflow of a ride-hailing system, including
+user authentication, ride requests, driver matching, route and
+distance calculation, fare calculation, ride-status management, and
+ride history.
+
+The project is designed as an engineering-focused solution rather
+than a research-driven system. It emphasizes time-to-value through
+incremental development, measurable evaluation through driver
+assignment time and workflow correctness, and scalability through
+efficient driver matching, structured data management, and modular
+backend design.
+
+The initial implementation will provide a complete and testable
+ride-booking workflow, while the modular architecture provides a
+clear path for improving performance and supporting a larger number
+of users, drivers, and concurrent ride requests in future
+iterations.
+
+
+\end{document}
