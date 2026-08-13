@@ -39,13 +39,13 @@
 
 \author{
   Ayush, CSED \\
-  Roll No: \texttt{1024030740}, Email: \texttt{aayush\_be24@thapar.edu}
-  \and
+  \texttt{1024030740, aayush\_be24@thapar.edu}
+  \\[0.5em]
   Gurleen Kaur, CSED \\
-  Roll No: \texttt{1024030325}, Email: \texttt{gkaur6\_be24@thapar.edu}
-  \and
+  \texttt{1024030325, gkaur6\_be24@thapar.edu}
+  \\[0.5em]
   Anshika, CSED \\
-  Roll No: \texttt{1024030749}, Email: \texttt{aanshika\_be24@thapar.edu}
+  \texttt{1024030749, aanshika\_be24@thapar.edu}
 }
 
 \date{\today}
@@ -67,11 +67,11 @@ simple and responsive user experience.
 
 The immediate engineering objective is to translate the core
 ride-sharing workflow---from requesting a ride to matching a driver
-and completing the trip---into a measurable and deployable C++-based
-software solution. The system will focus on practical aspects such as
-location-based driver matching, ride booking, fare estimation,
-trip-status management, authentication, and reliable communication
-through REST APIs.
+and completing the trip---into a measurable and deployable
+full-stack web application. The system will focus on practical
+aspects such as location-based driver matching, ride booking,
+fare estimation, trip-status management, authentication, and
+reliable communication through REST APIs.
 
 
 \section{Time-to-value%
@@ -93,7 +93,8 @@ through REST APIs.
     ride-sharing workflow rather than advanced features. This allows
     the project to demonstrate measurable value early while leaving
     room for later improvements such as optimized driver matching,
-    improved data structures, fare adjustments, and support for
+    improved database queries, fare adjustments, real-time ride
+    updates, feedback and rating functionality, and support for
     multiple concurrent ride requests.
 
     \item Success will be defined by what can be delivered and
@@ -153,9 +154,12 @@ requesting, matching, and managing rides.
 
 \subsection{Overview}
 
-Build a lightweight C++-based ride-sharing backend that exposes
-REST APIs for passengers and drivers. The system will provide the
-following core functionality:
+Build a lightweight full-stack ride-sharing web application using
+React, Node.js, Express.js, PostgreSQL, and Prisma. The system will
+provide a React-based frontend for passengers and drivers and a
+Node.js and Express.js backend for application logic and REST API
+communication. The system will provide the following core
+functionality:
 
 \begin{itemize}
 
@@ -163,9 +167,14 @@ following core functionality:
     and drivers can register and authenticate before accessing
     role-specific functionality.
 
+    \item \textbf{Passenger and driver dashboards:} The React
+    frontend will provide role-specific dashboards for passengers
+    and drivers, allowing each user type to access the functions
+    relevant to their workflow.
+
     \item \textbf{Ride request module:} Passengers can provide pickup
     and destination locations and submit a ride request through the
-    available API.
+    web application.
 
     \item \textbf{Driver availability and matching:} The system
     maintains driver availability and matches ride requests with
@@ -188,10 +197,10 @@ following core functionality:
 
 \end{itemize}
 
-The backend will communicate through REST APIs and use structured
-JSON data for request and response handling. A lightweight client,
-Postman, Swagger, or a future frontend can be used to interact with
-and demonstrate the APIs.
+The frontend will communicate with the Express.js backend through
+REST APIs and structured JSON data. PostgreSQL will be used for
+persistent storage of users, drivers, rides, locations, fare details,
+and ride history, with Prisma providing the database access layer.
 
 
 \subsection{Core Workflow}
@@ -222,6 +231,9 @@ and demonstrate the APIs.
 
     \item The completed ride is stored in the ride history.
 
+    \item After the ride is completed, the passenger can provide
+    a rating and optional feedback for the driver.
+
 \end{enumerate}
 
 
@@ -229,15 +241,16 @@ and demonstrate the APIs.
 
 \begin{itemize}
 
-    \item Keep the backend lightweight and suitable for deployment
-    on commonly available computing resources.
+    \item Keep the application lightweight and suitable for
+    deployment on commonly available computing resources.
 
     \item Focus on the essential ride-booking workflow rather than
     replicating the complete functionality of commercial
     ride-hailing platforms.
 
-    \item Use a modular C++ architecture so that individual
-    components can be tested and extended independently.
+    \item Use a modular full-stack architecture so that frontend,
+    backend, and database components can be tested and extended
+    independently.
 
     \item Use mature technologies and libraries rather than
     developing infrastructure from scratch.
@@ -246,7 +259,7 @@ and demonstrate the APIs.
     during the initial implementation.
 
     \item Prioritize correctness, reliability, efficient data
-    management, and scalability of the core backend operations.
+    management, and scalability of the core application.
 
 \end{itemize}
 
@@ -255,25 +268,25 @@ and demonstrate the APIs.
 \BvrHint{\ldots Engineering focus}
 
 This is an engineering course project, so the focus will be on
-building a reliable, modular, and scalable C++ backend rather than
-developing novel algorithms. The implementation will prioritize the
-core passenger-driver workflow, efficient driver matching,
-well-defined ride-status transitions, secure API access, and
-incremental development.
+building a reliable, modular, and scalable full-stack application
+rather than developing novel algorithms. The implementation will
+prioritize the core passenger-driver workflow, efficient driver
+matching, well-defined ride-status transitions, secure API access,
+and incremental development.
 
 
 \subsection{Backend Architecture}
-\BvrHint{\ldots C++ REST-based solution}
+\BvrHint{\ldots Node.js and Express.js REST-based solution}
 
-The system will use a modular C++ backend exposed through REST APIs.
-The major components will be separated according to their
-responsibilities:
+The system will use a modular Node.js and Express.js backend exposed
+through REST APIs. The major components will be separated according
+to their responsibilities:
 
 \begin{itemize}
 
     \item \textbf{Authentication Module:} Handles user registration,
-    login, authentication, and role-based access for passengers and
-    drivers.
+    login, JWT-based authentication, and role-based access for
+    passengers and drivers.
 
     \item \textbf{Ride Management Module:} Creates ride requests,
     manages ride information, and controls valid ride-status
@@ -285,20 +298,26 @@ responsibilities:
     \item \textbf{Matching Module:} Searches for suitable available
     drivers based on their location relative to the pickup point.
 
-    \item \textbf{Routing Module:} Calculates suitable routes and
-    travel distances between relevant locations using graph-based
-    pathfinding algorithms.
-
     \item \textbf{Fare Module:} Calculates estimated and final fares
     using predefined pricing rules.
 
+    \item \textbf{Feedback Module:} Records passenger ratings and
+    optional feedback for completed rides and associates them with
+    the relevant driver and ride.
+
     \item \textbf{Data Management Module:} Handles persistent storage
-    and retrieval of users, drivers, rides, and ride history.
+    and retrieval of users, drivers, rides, feedback, and ride history
+    using PostgreSQL and Prisma.
+
+    \item \textbf{Validation Module:} Validates incoming API
+    requests before processing them to maintain consistent and
+    reliable application data.
 
 \end{itemize}
 
-The C++ backend will expose these functionalities through REST
-endpoints, with JSON used for structured request and response data.
+The Express.js backend will expose these functionalities through
+REST endpoints, with JSON used for structured request and response
+data.
 
 
 \subsection{Driver Matching}
@@ -327,21 +346,20 @@ Driver matching will initially use a simple location-based approach:
 The initial implementation will use a straightforward distance-based
 matching strategy. The matching module will remain independent from
 the rest of the system so that it can later be optimized using more
-efficient search or spatial data structures.
+efficient search or location-based techniques.
 
 
 \subsection{Route and Distance Calculation}
-\BvrHint{\ldots path-based computation}
+\BvrHint{\ldots practical location-based computation}
 
-The system will use graph-based path computation where required for
-estimating routes and travel distance between relevant locations.
-Dijkstra's algorithm or A* can be used depending on the final
-representation of the underlying road network.
-
+The system will use location and distance calculations where
+required for estimating the distance between relevant locations.
 The calculated distance can be used by the fare calculation module
-and can also support driver-selection decisions. The routing
-component will remain separate from the ride-management logic so
-that it can be optimized independently as the system grows.
+and can also support driver-selection decisions.
+
+The distance calculation component will remain separate from the
+ride-management logic so that it can be improved independently as
+the system grows.
 
 
 \subsection{Ride Workflow Management}
@@ -365,18 +383,19 @@ such as completing a ride that has not been accepted or started.
 \BvrHint{\ldots structured and persistent data}
 
 The system will maintain structured records for passengers, drivers,
-and rides. Data structures will be selected according to common
-operations such as searching for available drivers, updating driver
-status, creating rides, and retrieving ride history.
+rides, and feedback. PostgreSQL will be used as the relational
+database for persistent storage of users, drivers, rides, locations,
+fare details, feedback, ratings, and ride history.
 
-PostgreSQL will be used as the relational database for persistent
-storage of users, drivers, rides, locations, fare details, and ride
-history. The database layer will be separated from the core
-ride-management logic so that storage-related changes do not require
-redesigning the complete application.
+Prisma will be used as the database access layer and ORM for defining
+the application data models and interacting with PostgreSQL. The
+database layer will be separated from the core ride-management logic
+so that storage-related changes do not require redesigning the
+complete application.
 
-JSON serialization and deserialization will be handled using
-\texttt{nlohmann/json}.
+Appropriate indexes and relational constraints will be considered
+for frequently queried and related data such as driver availability,
+ride status, user roles, and ride history.
 
 
 \subsection{Authentication and Security}
@@ -385,10 +404,13 @@ JSON serialization and deserialization will be handled using
 Authentication will be implemented so that passengers and drivers
 can access only the operations relevant to their roles.
 
-JWT-based token authentication will be used for API access, with
-OpenSSL providing appropriate cryptographic support where required.
-Input validation will be performed before processing requests to
-prevent invalid or inconsistent data from entering the system.
+JWT-based token authentication will be used for API access. Input
+validation will be performed before processing requests to prevent
+invalid or inconsistent data from entering the system.
+
+Zod will be used for request validation, while CORS will be
+configured to allow controlled communication between the React
+frontend and the Express.js backend.
 
 
 \subsection{Fare Calculation}
@@ -412,8 +434,9 @@ estimates and final fares are predictable and easy to test.
 
 The success of UberLite will be evaluated using measurable metrics
 directly related to the core ride-booking workflow. The evaluation
-will focus on system correctness, efficiency, reliability, and
-backend performance rather than comparison with commercial
+will focus on system correctness, efficiency, reliability,
+application performance, and successful completion of important
+frontend workflows rather than comparison with commercial
 ride-hailing platforms.
 
 
@@ -435,7 +458,7 @@ an available driver.
 
     \item \textbf{Attribution:} Both timestamps will be generated and
     stored by the backend, allowing the metric to be measured directly
-    from system logs.
+    from application logs and database records.
 
 \end{itemize}
 
@@ -464,6 +487,14 @@ an available driver.
     \item \textbf{API Response Time:} Average time taken by important
     backend operations such as authentication, ride creation,
     driver matching, and ride-status updates.
+
+    \item \textbf{Frontend Workflow Completion:} Percentage of test
+    scenarios in which passengers and drivers can successfully
+    complete their intended workflows through the React interface.
+
+    \item \textbf{Feedback Submission Reliability:} Percentage of
+    eligible completed rides for which ratings and feedback can be
+    successfully submitted and stored.
 
     \item \textbf{Reliability:} Percentage of test scenarios
     completed without API failures, invalid state transitions,
@@ -498,6 +529,14 @@ represent the main passenger and driver workflows.
     \item Test API endpoints for valid requests, invalid input, and
     unauthorized access.
 
+    \item Test the passenger and driver dashboards for successful
+    navigation, authentication, ride-request submission, and
+    ride-status display.
+
+    \item Test rating and feedback submission after completed rides
+    and verify that the feedback is correctly associated with the
+    relevant ride and driver.
+
 \end{itemize}
 
 The collected results will be used to identify performance issues,
@@ -508,69 +547,86 @@ made iteratively based on the observed results.
 \section{Scalability}
 \BvrHint{\ldots with foresight}
 
-Although UberLite is initially developed as an academic C++ backend,
-the system will be designed to handle growth in users, drivers, and
-ride requests without requiring a complete redesign.
+Although UberLite is initially developed as an academic full-stack
+application, the system will be designed to handle growth in users,
+drivers, and ride requests without requiring a complete redesign.
 
 \subsection{Efficient Driver Matching}
 \BvrHint{\ldots reducing unnecessary search}
 
 Driver matching is the main scalability concern. Instead of
-repeatedly checking every driver for every ride request, appropriate
-C++ data structures will be used to organize available drivers and
-reduce unnecessary search. The matching module will remain modular
-so that more efficient spatial search techniques can be introduced
-if the number of drivers increases significantly.
+repeatedly checking every driver for every ride request, the matching
+logic will remain modular so that more efficient location-based
+search techniques can be introduced if the number of drivers
+increases significantly.
+
+The initial implementation will use a straightforward distance-based
+matching strategy suitable for a controlled academic environment.
+
 
 \subsection{Data and Backend Scalability}
 \BvrHint{\ldots efficient operations}
 
-User, driver, and ride information will be stored in PostgreSQL with
-appropriate indexing for frequently queried fields. C++ data
-structures will be selected to support efficient driver searches,
-status updates, and ride management while avoiding unnecessary full
-scans and data copying.
+User, driver, ride, and feedback information will be stored in
+PostgreSQL with appropriate indexing and relational constraints for
+frequently queried and related data. The Express.js backend will be
+structured into separate routes, controllers, validation, business
+logic, and database operations.
+
+Prisma will provide a consistent database access layer between the
+backend application and PostgreSQL. This separation will allow
+individual components to be optimized without requiring major
+changes to the complete application.
+
 
 \subsection{Scalability Path}
 \BvrHint{\ldots prototype to larger system}
 
 The initial system will target a controlled academic environment.
 For larger deployments, scalability can be improved through more
-efficient driver-search structures, optimized database queries,
-better handling of concurrent ride requests, and multiple backend
-instances when required.
+efficient driver-search strategies, optimized PostgreSQL queries
+and indexes, better handling of concurrent ride requests,
+pagination for large datasets, and multiple backend instances when
+required.
 
 
 \section{Technology and Engine Availability}
 \BvrHint{\ldots mature engineering components}
 
 UberLite will use a mature set of technologies and libraries that
-are well suited for implementing a C++-based backend and REST API
-system. These components allow the project to focus on ride-booking
-workflow, correctness, scalability, and evaluation rather than
-developing basic infrastructure from scratch.
+are well suited for implementing a full-stack web application and
+REST API system. These components allow the project to focus on
+ride-booking workflow, correctness, scalability, and evaluation
+rather than developing basic infrastructure from scratch.
 
 \begin{itemize}
 
-    \item \textbf{C++:} Used as the primary language for implementing
-    backend logic, data structures, algorithms, and core
-    ride-management functionality.
+    \item \textbf{React:} Used to develop the frontend interface for
+    passengers and drivers and provide role-specific dashboards for
+    the ride-booking workflow.
 
-    \item \textbf{Crow/Pistache:} Used as the C++ web framework for
-    implementing REST APIs and handling HTTP requests and responses.
+    \item \textbf{Node.js:} Used as the server-side JavaScript
+    runtime for implementing the backend application.
+
+    \item \textbf{Express.js:} Used for implementing REST APIs and
+    handling HTTP requests, responses, and backend application logic.
 
     \item \textbf{PostgreSQL:} Used as the relational database for
     persistent storage of users, drivers, rides, locations, fare
-    details, and ride history.
+    details, feedback, ratings, and ride history.
 
-    \item \textbf{nlohmann/json:} Used for JSON serialization and
-    deserialization in API requests and responses.
+    \item \textbf{Prisma:} Used as the ORM and database access layer
+    for defining application data models and interacting with
+    PostgreSQL from the Node.js backend.
 
-    \item \textbf{JWT and OpenSSL:} Used to support authentication
-    and secure handling of user credentials and tokens.
+    \item \textbf{Zod:} Used for request-body validation and ensuring
+    that API inputs follow the required structure.
 
-    \item \textbf{CMake:} Used to manage the C++ build process and
-    project dependencies in a consistent manner.
+    \item \textbf{JWT:} Used to implement token-based authentication
+    and protect role-specific API endpoints.
+
+    \item \textbf{CORS:} Used to control communication between the
+    React frontend and the Express.js backend.
 
     \item \textbf{Postman:} Used to test and validate REST API
     endpoints during development.
@@ -591,7 +647,8 @@ management, correctness, testing, and scalability.
 
 The project will be developed incrementally, with the first iteration
 focused on implementing and demonstrating the complete core
-ride-booking workflow.
+ride-booking workflow through the backend APIs and web-based
+frontend.
 
 \subsection{Initial Deliverable}
 \BvrHint{\ldots first iteration}
@@ -600,6 +657,8 @@ ride-booking workflow.
 
     \item User registration and authentication for passengers and
     drivers.
+
+    \item React-based passenger and driver dashboards.
 
     \item Ride request creation with pickup and destination
     information.
@@ -612,13 +671,15 @@ ride-booking workflow.
 
     \item Basic fare estimation and final fare calculation.
 
-    \item Route and distance calculation using the selected
-    pathfinding approach.
+    \item Location and distance calculation for driver matching and
+    fare estimation.
 
     \item Persistent storage of users, drivers, rides, and ride
-    history.
+    history using PostgreSQL.
 
     \item REST API endpoints for the core system functionality.
+
+    \item Input validation and role-based authentication.
 
     \item Unit and integration testing of the main backend modules.
 
@@ -636,13 +697,22 @@ ride-booking workflow.
 
     \item Improved ride-history search and filtering.
 
+    \item Rating and feedback functionality for completed rides.
+
+    \item Real-time ride-status updates between passenger and driver
+    interfaces.
+
+    \item Periodic driver location updates and improved ride tracking.
+
     \item Additional validation, authentication, and security
     improvements.
 
+    \item Improved frontend usability and responsive design.
+
     \item Performance testing and scalability evaluation.
 
-    \item Optional lightweight client or frontend for demonstrating
-    the backend APIs.
+    \item Deployment of the application for online demonstration,
+    subject to project time and available resources.
 
 \end{itemize}
 
@@ -653,8 +723,8 @@ ride-booking workflow.
 
     \item \textbf{Driver matching efficiency:} A simple search may
     become inefficient as the number of drivers increases. This will
-    be addressed through appropriate data structures and a modular
-    matching component that can be optimized later.
+    be addressed through a modular matching component that can be
+    optimized later.
 
     \item \textbf{Concurrent ride requests:} Multiple requests may
     attempt to assign the same driver. Driver availability will be
@@ -664,11 +734,28 @@ ride-booking workflow.
     \item \textbf{Data consistency:} Invalid ride states or
     inconsistent records may occur if operations are not validated.
     The system will enforce defined ride-state transitions and
-    validate API inputs.
+    validate API inputs. PostgreSQL transactions and relational
+    constraints can also be used where required.
 
     \item \textbf{Security:} Unauthorized users may attempt to access
     restricted operations. JWT-based authentication and role-based
     access control will be applied to relevant API endpoints.
+
+    \item \textbf{Frontend-backend communication:} Incorrect API
+    requests or cross-origin configuration may cause communication
+    failures. REST API contracts, request validation, and appropriate
+    CORS configuration will be used to reduce such issues.
+
+    \item \textbf{Feedback feature complexity:} Rating and feedback
+    functionality will be implemented only for completed rides and
+    kept lightweight so that it does not interfere with the core
+    ride-booking workflow.
+
+    \item \textbf{Real-time feature complexity:} Real-time ride
+    updates and driver-location tracking may require additional
+    implementation effort. These features will be treated as
+    subsequent deliverables and prioritized based on available
+    development time after the core workflow is stable.
 
     \item \textbf{Evaluation ambiguity:} Performance and correctness
     can be difficult to assess without clearly defined metrics.
@@ -678,31 +765,36 @@ ride-booking workflow.
     \item \textbf{Project complexity:} Adding too many commercial
     ride-hailing features may make the project difficult to complete.
     The initial implementation will remain focused on the core
-    ride-booking workflow.
+    ride-booking workflow, with additional features added only when
+    the core system is stable.
 
 \end{itemize}
 
 
 \section{Summary}
 
-UberLite proposes a lightweight C++-based ride-sharing backend that
+UberLite proposes a lightweight full-stack ride-sharing application
+using React, Node.js, Express.js, PostgreSQL, and Prisma. The system
 provides the essential workflow of a ride-hailing system, including
-user authentication, ride requests, driver matching, route and
-distance calculation, fare calculation, ride-status management, and
-ride history.
+user authentication, passenger and driver dashboards, ride requests,
+driver matching, location and distance calculation, fare calculation,
+ride-status management, ride history, and post-ride feedback.
 
 The project is designed as an engineering-focused solution rather
 than a research-driven system. It emphasizes time-to-value through
 incremental development, measurable evaluation through driver
 assignment time and workflow correctness, and scalability through
-efficient driver matching, structured data management, and modular
-backend design.
+efficient driver matching, structured relational data management,
+and modular frontend and backend design.
 
 The initial implementation will provide a complete and testable
-ride-booking workflow, while the modular architecture provides a
-clear path for improving performance and supporting a larger number
-of users, drivers, and concurrent ride requests in future
-iterations.
+ride-booking workflow through a React frontend and Node.js/Express.js
+backend, with PostgreSQL providing persistent data storage and
+Prisma providing the database access layer. Subsequent development
+may extend the system with rating and feedback functionality,
+real-time ride-status updates, driver location tracking, improved
+frontend interaction, and online deployment depending on the
+available project time and testing results.
 
 
 \end{document}
