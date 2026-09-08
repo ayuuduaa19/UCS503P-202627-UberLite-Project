@@ -1,15 +1,32 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { config } from './config';
+import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// CORS configuration
+const allowedOrigins = config.corsOrigin.split(',').map((origin) => origin.trim());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS policy does not allow access from origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// JSON & URL-encoded parsing middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+// Root info endpoint
 app.get('/', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -17,6 +34,25 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`UberLite backend server running on http://localhost:${PORT}`);
+// Dedicated health-check endpoint
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: config.nodeEnv,
+  });
 });
+
+// Centralized 404 handler for undefined routes
+app.use(notFoundHandler);
+
+// Centralized error handling middleware
+app.use(errorHandler);
+
+// Start server
+app.listen(config.port, () => {
+  console.log(`UberLite backend server running on http://localhost:${config.port} [${config.nodeEnv}]`);
+});
+
+export default app;
