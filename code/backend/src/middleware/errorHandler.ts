@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 import { config } from '../config';
 
 export class AppError extends Error {
@@ -23,11 +24,25 @@ export const notFoundHandler = (req: Request, res: Response, _next: NextFunction
 };
 
 export const errorHandler = (
-  err: Error | AppError,
+  err: Error | AppError | ZodError,
   _req: Request,
   res: Response,
   _next: NextFunction
 ) => {
+  if (err instanceof ZodError) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        message: 'Validation failed',
+        statusCode: 400,
+        details: err.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+        })),
+      },
+    });
+  }
+
   const statusCode = 'statusCode' in err && typeof err.statusCode === 'number' ? err.statusCode : 500;
   const message = err.message || 'Internal Server Error';
 
