@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { registerSchema } from '../validators/auth.validator';
+import { registerSchema, loginSchema } from '../validators/auth.validator';
 import { authService } from '../services/auth.service';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -13,6 +13,21 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       data: {
         user,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const login = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validatedData = loginSchema.parse(req.body);
+    const result = await authService.login(validatedData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: result,
     });
   } catch (error) {
     next(error);
