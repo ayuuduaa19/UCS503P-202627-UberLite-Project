@@ -67,7 +67,7 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
       }
     }
 
-    // Attach user from decoded token payload
+    // Attach user from decoded token payload (fallback for isolated tests / no DB)
     req.user = {
       id: decoded.id,
       email: decoded.email,
