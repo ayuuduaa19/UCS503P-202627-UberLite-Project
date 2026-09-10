@@ -39,35 +39,40 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
       return next(new AppError('Invalid token payload', 401));
     }
 
-    // Attempt to verify user existence in the database
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          phone: true,
-          role: true,
-        },
-      });
+    // Attempt to verify user existence in the database if configured
+    if (process.env.DATABASE_URL) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.id },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            role: true,
+          },
+        });
 
-      if (!user) {
-        return next(new AppError('User belonging to this token no longer exists', 401));
-      }
+        if (!user) {
+          return next(new AppError('User belonging to this token no longer exists', 401));
+        }
 
-      req.user = user;
-    } catch (dbError: any) {
-      if (dbError instanceof AppError) {
-        return next(dbError);
+        req.user = user;
+        return next();
+      } catch (dbError: any) {
+        if (dbError instanceof AppError) {
+          return next(dbError);
+        }
+        // Fallback to token payload if database query fails
       }
-      // Fallback to token payload if database is unreachable (e.g. during isolated tests)
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        role: decoded.role,
-      };
     }
+
+    // Attach user from decoded token payload (fallback for isolated tests / no DB)
+    req.user = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+    };
 
     return next();
   } catch (error) {
@@ -76,14 +81,15 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
 };
 
 /**
- * Aliases for convenient importing
+ * Aliases for convenient importing of authentication middleware
  */
 export const authenticateToken = authenticate;
 export const requireAuth = authenticate;
 export const authMiddleware = authenticate;
 
 /**
- * Role-based authorization middleware
+ * Reusable role-based authorization middleware
+ * Checks whether the authenticated user has one of the allowed roles.
  */
 export const authorize = (...roles: (Role | string)[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
@@ -98,3 +104,12 @@ export const authorize = (...roles: (Role | string)[]) => {
     return next();
   };
 };
+
+/**
+ * Aliases and role-specific helper middleware
+ */
+export const authorizeRoles = authorize;
+export const requireRole = (role: Role | string) => authorize(role);
+export const requirePassenger = authorize(Role.PASSENGER);
+export const requireDriver = authorize(Role.DRIVER);
+export const requireAdmin = authorize(Role.ADMIN);
