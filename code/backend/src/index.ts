@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { config } from './config';
 import authRouter from './routes/auth.routes';
+import passengerRouter from './routes/passenger.routes';
+import driverRouter from './routes/driver.routes';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -47,6 +49,8 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // API routes
 app.use('/api/auth', authRouter);
+app.use('/api/passenger', passengerRouter);
+app.use('/api/driver', driverRouter);
 
 // Centralized 404 handler for undefined routes
 app.use(notFoundHandler);
