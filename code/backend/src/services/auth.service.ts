@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { Role, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { config } from '../config';
 import { AppError } from '../middleware/errorHandler';
-import { RegisterInput } from '../validators/auth.validator';
+import { RegisterInput, LoginInput } from '../validators/auth.validator';
 
 export class AuthService {
   async register(input: RegisterInput) {
@@ -105,6 +107,42 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  async login(input: LoginInput) {
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
+      include: {
+        driverProfile: true,
+      },
+    });
+
+    if (!user) {
+      throw new AppError('Invalid email or password', 401);
+    }
+
+    const isPasswordValid = await bcrypt.compare(input.password, user.password);
+    if (!isPasswordValid) {
+      throw new AppError('Invalid email or password', 401);
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      config.jwtSecret,
+      { expiresIn: config.jwtExpiresIn } as jwt.SignOptions
+    );
+
+    const { password: _, ...userWithoutPassword } = user;
+
+    return {
+      token,
+      user: userWithoutPassword,
+    };
   }
 }
 
