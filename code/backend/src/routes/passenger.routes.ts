@@ -8,8 +8,6 @@ import {
 } from '../controllers/passenger.controller';
 
 const router = Router();
-
-// Protect all passenger routes: require valid token and PASSENGER role
 router.use(authenticate, authorize(Role.PASSENGER));
 
 router.get('/profile', getPassengerProfile);

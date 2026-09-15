@@ -110,12 +110,12 @@ describe('Location & Distance Utility', () => {
   });
 
   describe('Driver Matching Proximity Helpers', () => {
-    const passengerLocation = { lat: 28.6139, lng: 77.209 }; // New Delhi center
+    const passengerLocation = { lat: 28.6139, lng: 77.209 };
 
     const drivers = [
-      { id: 'driver-far', name: 'Far Driver', lat: 28.7041, lng: 77.1025 }, // ~14 km away (Rohini)
-      { id: 'driver-close', name: 'Close Driver', lat: 28.615, lng: 77.2105 }, // ~0.2 km away
-      { id: 'driver-medium', name: 'Medium Driver', lat: 28.6289, lng: 77.2065 }, // ~1.7 km away
+      { id: 'driver-far', name: 'Far Driver', lat: 28.7041, lng: 77.1025 },
+      { id: 'driver-close', name: 'Close Driver', lat: 28.615, lng: 77.2105 },
+      { id: 'driver-medium', name: 'Medium Driver', lat: 28.6289, lng: 77.2065 },
       { id: 'driver-no-loc', name: 'Offline Driver', lat: null, lng: null },
     ];
 
@@ -163,7 +163,7 @@ describe('Location & Distance Utility', () => {
     it('should return null if nearest driver exceeds max radius', () => {
       const nearestStrict = findNearest(
         passengerLocation,
-        [drivers[0]], // Far driver ~14 km away
+        [drivers[0]],
         (d) => ({ lat: d.lat!, lng: d.lng! }),
         5.0
       );
@@ -183,11 +183,9 @@ describe('Location & Distance Utility', () => {
     });
 
     it('should estimate travel duration in minutes based on distance and speed', () => {
-      // 15 km at 30 km/h = 30 minutes
       const durationMin = estimateTravelTimeMinutes(15, 30);
       assert.equal(durationMin, 30);
 
-      // 10 km at 40 km/h = 15 minutes
       const durationMin2 = estimateTravelTimeMinutes(10, 40);
       assert.equal(durationMin2, 15);
     });

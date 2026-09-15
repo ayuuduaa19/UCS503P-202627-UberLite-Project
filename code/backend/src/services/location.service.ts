@@ -18,9 +18,6 @@ export interface DistanceResult {
 }
 
 export class LocationService {
-  /**
-   * Calculates distance between origin and destination with unit and precision options.
-   */
   calculateDistance(input: CalculateDistanceInput): DistanceResult {
     const unit = input.unit || 'km';
     const decimals = typeof input.decimals === 'number' ? input.decimals : 2;
@@ -48,17 +45,11 @@ export class LocationService {
     };
   }
 
-  /**
-   * Estimates ride distance (km) and travel duration (minutes) for a pickup and dropoff pair.
-   */
   estimateRide(input: EstimateRideInput): RideEstimate {
     const avgSpeed = input.averageSpeedKmh || 30;
     return calculateDistanceAndDuration(input.pickup, input.dropoff, avgSpeed);
   }
 
-  /**
-   * Matching helper: Sorts candidates by distance to an origin location.
-   */
   sortByDistance<T>(
     origin: CoordinatesInput,
     items: T[],
@@ -67,9 +58,6 @@ export class LocationService {
     return sortByDistance(origin, items, getCoordinates);
   }
 
-  /**
-   * Matching helper: Finds the closest candidate to origin.
-   */
   findNearest<T>(
     origin: CoordinatesInput,
     items: T[],
@@ -79,9 +67,6 @@ export class LocationService {
     return findNearest(origin, items, getCoordinates, maxRadiusKm);
   }
 
-  /**
-   * Matching helper: Filters candidates within a given radius.
-   */
   filterByRadius<T>(
     origin: CoordinatesInput,
     items: T[],

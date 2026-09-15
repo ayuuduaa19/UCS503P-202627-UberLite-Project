@@ -1,10 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { driverService } from '../services/driver.service';
+import { updateLocationSchema } from '../validators/driver.validator';
 
-/**
- * Get authenticated driver profile and vehicle info
- */
 export const getDriverProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
@@ -37,9 +36,20 @@ export const getDriverProfile = async (req: Request, res: Response, next: NextFu
   }
 };
 
-/**
- * Update driver availability status
- */
+export const getAvailability = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const availability = await driverService.getAvailability(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: availability,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateAvailability = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
@@ -49,18 +59,7 @@ export const updateAvailability = async (req: Request, res: Response, next: Next
       throw new AppError('Field isAvailable must be a boolean', 400);
     }
 
-    const driver = await prisma.driver.findUnique({
-      where: { userId },
-    });
-
-    if (!driver) {
-      throw new AppError('Driver profile not found', 404);
-    }
-
-    const updatedDriver = await prisma.driver.update({
-      where: { id: driver.id },
-      data: { isAvailable },
-    });
+    const updatedDriver = await driverService.updateAvailability(userId, isAvailable);
 
     return res.status(200).json({
       success: true,
@@ -74,9 +73,39 @@ export const updateAvailability = async (req: Request, res: Response, next: Next
   }
 };
 
-/**
- * Get rides assigned to the authenticated driver
- */
+export const getDriverLocation = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const location = await driverService.getLocation(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: location,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateDriverLocation = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { lat, lng } = updateLocationSchema.parse(req.body);
+
+    const updatedDriver = await driverService.updateLocation(userId, lat, lng);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Driver location updated successfully',
+      data: {
+        driver: updatedDriver,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getDriverRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;

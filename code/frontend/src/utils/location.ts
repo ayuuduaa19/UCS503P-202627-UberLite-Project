@@ -1,10 +1,3 @@
-/**
- * Location and Distance Utility Module (Frontend)
- *
- * Standalone utility providing coordinate normalization, coordinate validation,
- * Haversine great-circle distance calculation, and ride fare/duration estimators.
- */
-
 export interface CoordinatesLatLng {
   lat: number;
   lng: number;

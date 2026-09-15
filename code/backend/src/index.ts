@@ -9,7 +9,6 @@ import { notFoundHandler, errorHandler } from "./middleware/errorHandler";
 
 const app = express();
 
-// CORS configuration
 const allowedOrigins = config.corsOrigin
   .split(",")
   .map((origin) => origin.trim());
@@ -30,11 +29,9 @@ app.use(
   }),
 );
 
-// JSON & URL-encoded parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Root info endpoint
 app.get("/", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
@@ -42,7 +39,6 @@ app.get("/", (_req: Request, res: Response) => {
   });
 });
 
-// Dedicated health-check endpoint
 app.get("/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
@@ -52,19 +48,15 @@ app.get("/health", (_req: Request, res: Response) => {
   });
 });
 
-// API routes
 app.use("/api/auth", authRouter);
 app.use("/api/location", locationRouter);
 app.use("/api/passenger", passengerRouter);
 app.use("/api/driver", driverRouter);
 
-// Centralized 404 handler for undefined routes
 app.use(notFoundHandler);
 
-// Centralized error handling middleware
 app.use(errorHandler);
 
-// Start server
 app.listen(config.port, () => {
   console.log(
     `UberLite backend server running on http://localhost:${config.port} [${config.nodeEnv}]`,

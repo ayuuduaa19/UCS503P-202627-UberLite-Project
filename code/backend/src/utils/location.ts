@@ -1,11 +1,3 @@
-/**
- * Location and Distance Utility Module
- * 
- * Standalone utility providing coordinate normalization, coordinate validation,
- * Haversine great-circle distance calculation, driver-matching proximity helpers,
- * and fare/duration estimators.
- */
-
 export interface CoordinatesLatLng {
   lat: number;
   lng: number;
@@ -16,7 +8,7 @@ export interface CoordinatesFull {
   longitude: number;
 }
 
-export type CoordinateTuple = [number, number]; // [lat, lng]
+export type CoordinateTuple = [number, number];
 
 export type CoordinatesInput = CoordinatesLatLng | CoordinatesFull | CoordinateTuple;
 
@@ -32,33 +24,22 @@ export interface RideEstimate {
   durationMin: number;
 }
 
-// Earth mean radius in kilometers (IUGG standard mean radius)
 export const EARTH_RADIUS_KM = 6371.0;
 
-// Conversion factors from kilometers
 const UNIT_FACTORS: Record<DistanceUnit, number> = {
   km: 1,
   m: 1000,
   miles: 0.621371192,
 };
 
-/**
- * Checks if a given value is a finite, valid latitude (-90 to 90 degrees).
- */
 export function isValidLatitude(lat: unknown): boolean {
   return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90;
 }
 
-/**
- * Checks if a given value is a finite, valid longitude (-180 to 180 degrees).
- */
 export function isValidLongitude(lng: unknown): boolean {
   return typeof lng === 'number' && Number.isFinite(lng) && lng >= -180 && lng <= 180;
 }
 
-/**
- * Checks if input is a valid coordinate representation.
- */
 export function isValidCoordinate(input: unknown): boolean {
   if (!input) return false;
 
@@ -79,10 +60,6 @@ export function isValidCoordinate(input: unknown): boolean {
   return false;
 }
 
-/**
- * Normalizes different coordinate input shapes into standard { lat, lng }.
- * Throws an Error if coordinates are malformed or out of range.
- */
 export function normalizeCoordinates(input: CoordinatesInput, label: string = 'Coordinate'): CoordinatesLatLng {
   if (!input) {
     throw new Error(`${label} is required`);
@@ -114,21 +91,10 @@ export function normalizeCoordinates(input: CoordinatesInput, label: string = 'C
   return { lat, lng };
 }
 
-/**
- * Converts degrees to radians.
- */
 function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
 }
 
-/**
- * Calculates the great-circle distance between two geographic points using the Haversine formula.
- *
- * @param origin - Origin coordinate pair
- * @param destination - Destination coordinate pair
- * @param options - DistanceUnit ('km' | 'm' | 'miles') and optional decimal rounding
- * @returns Calculated distance in the requested unit
- */
 export function calculateDistance(
   origin: CoordinatesInput,
   destination: CoordinatesInput,
@@ -139,7 +105,6 @@ export function calculateDistance(
   const start = normalizeCoordinates(origin, 'Origin');
   const end = normalizeCoordinates(destination, 'Destination');
 
-  // Identical coordinates check
   if (start.lat === end.lat && start.lng === end.lng) {
     return 0;
   }
@@ -154,7 +119,6 @@ export function calculateDistance(
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
-  // Clamp 'a' to [0, 1] to avoid Math.asin / Math.atan2 floating-point edge cases
   const clampedA = Math.min(Math.max(a, 0), 1);
   const c = 2 * Math.atan2(Math.sqrt(clampedA), Math.sqrt(1 - clampedA));
 
@@ -170,9 +134,6 @@ export function calculateDistance(
   return convertedDistance;
 }
 
-/**
- * Checks if a target location is within a specified radius (in kilometers) from origin.
- */
 export function isWithinRadius(
   origin: CoordinatesInput,
   target: CoordinatesInput,
@@ -183,10 +144,6 @@ export function isWithinRadius(
   return dist <= radiusKm;
 }
 
-/**
- * Calculates distance between pickup and dropoff specifically formatted for rides/fares.
- * Default precision is 2 decimal places.
- */
 export function calculateRideDistance(
   pickup: CoordinatesInput,
   dropoff: CoordinatesInput,
@@ -195,13 +152,6 @@ export function calculateRideDistance(
   return calculateDistance(pickup, dropoff, { unit: 'km', decimals });
 }
 
-/**
- * Estimates travel duration in minutes based on distance and average urban vehicle speed.
- * 
- * @param distanceKm - Distance in kilometers
- * @param averageSpeedKmh - Average speed in km/h (default: 30 km/h typical for urban traffic)
- * @param decimals - Decimal places for the returned duration (default: 1)
- */
 export function estimateTravelTimeMinutes(
   distanceKm: number,
   averageSpeedKmh: number = 30,
@@ -218,9 +168,6 @@ export function estimateTravelTimeMinutes(
   return Math.round(minutes * pow) / pow;
 }
 
-/**
- * Computes both ride distance (km) and estimated duration (minutes) for matching and fare calculations.
- */
 export function calculateDistanceAndDuration(
   pickup: CoordinatesInput,
   dropoff: CoordinatesInput,
@@ -235,11 +182,6 @@ export function calculateDistanceAndDuration(
   };
 }
 
-/**
- * Helper for matching: Filters and returns items within a maximum search radius (in km),
- * attaching distanceKm to each item and sorting them from nearest to farthest.
- * Items with undefined/null coordinates are automatically skipped.
- */
 export function filterByRadius<T>(
   origin: CoordinatesInput,
   items: T[],
@@ -251,10 +193,6 @@ export function filterByRadius<T>(
   );
 }
 
-/**
- * Helper for matching: Sorts candidate items by proximity to origin (nearest first).
- * Items with undefined/null coordinates are omitted.
- */
 export function sortByDistance<T>(
   origin: CoordinatesInput,
   items: T[],
@@ -278,10 +216,6 @@ export function sortByDistance<T>(
   return results.sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
-/**
- * Helper for matching: Finds the single nearest candidate within an optional maximum search radius.
- * Returns null if no candidates have valid coordinates or none are within maxRadiusKm.
- */
 export function findNearest<T>(
   origin: CoordinatesInput,
   items: T[],

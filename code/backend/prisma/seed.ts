@@ -5,7 +5,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting database seed...');
 
-  // 1. Seed Passengers
   const passenger1 = await prisma.user.upsert({
     where: { email: 'alice.passenger@uberlite.local' },
     update: {},
@@ -32,7 +31,6 @@ async function main() {
 
   console.log(`Seeded passengers: ${passenger1.name}, ${passenger2.name}`);
 
-  // 2. Seed Drivers with vehicles and locations
   const driverUser1 = await prisma.user.upsert({
     where: { email: 'rajesh.driver@uberlite.local' },
     update: {},

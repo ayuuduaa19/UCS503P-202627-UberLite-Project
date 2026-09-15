@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { getDistance, estimateRide } from '../location.controller';
 
-// Helper to create mock Express request and response objects
 function createMockContext(body: unknown) {
   let statusCode = 200;
   let jsonResponse: any = null;
@@ -71,7 +70,7 @@ describe('Location Controller & API Endpoints', () => {
 
     it('should pass validation errors to next() on invalid latitude', async () => {
       const ctx = createMockContext({
-        origin: { lat: 95, lng: 77.209 }, // lat > 90
+        origin: { lat: 95, lng: 77.209 },
         destination: { lat: 28.6289, lng: 77.2065 },
       });
 
