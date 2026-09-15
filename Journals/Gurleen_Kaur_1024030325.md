@@ -28,11 +28,16 @@ Learned how JWT authentication and role-based authorization are used to securely
 Date: 15 September 2026
 
 Work Done:
-Implemented driver availability and location management APIs for the UberLite backend.
-Added service logic, Zod validation, and role-guarded endpoints for drivers to retrieve and update their availability and current location.
-Implemented ride creation for passengers with pickup and destination locations, initial REQUESTED status, timestamps, and database relationships.
-Tested all new service logic, validation schemas, controller endpoints, and role-based access control.
+
+Implemented a modular location-based matching service to find available drivers near the passenger’s pickup location.
+Added Haversine distance calculation and logic to select the nearest suitable driver based on location.
+Added availability checks to prevent rides from being assigned to unavailable or offline drivers.
+Implemented passenger ride creation with pickup and dropoff locations, initial REQUESTED status, timestamps, and required database relationships.
+Added validation, role-protected endpoints, and comprehensive tests for ride creation and driver matching.
 
 Outcome:
-60/60 tests passed and TypeScript build completed with 0 errors.
-Learned service-layer design patterns, coordinate validation, and passenger ride request workflows.
+
+121/121 tests passed and TypeScript build completed with 0 errors.
+Learned about geospatial distance calculation, modular driver matching, availability handling, and passenger ride creation workflows.
+
+
