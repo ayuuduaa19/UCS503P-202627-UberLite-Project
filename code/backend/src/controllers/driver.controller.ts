@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { driverService } from '../services/driver.service';
+import { rideService } from '../services/ride.service';
 import {
   updateLocationSchema,
   updateDriverStatusSchema,
@@ -218,6 +219,55 @@ export const getDriverRides = async (req: Request, res: Response, next: NextFunc
       success: true,
       data: {
         rides,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Accept a ride that has been matched to the authenticated driver.
+ * Only the assigned driver (ride.driverId === driver.id) may accept.
+ * Ride status: MATCHED → ACCEPTED. Driver stays unavailable.
+ */
+export const acceptRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const driverUserId = req.user!.id;
+    const { id } = req.params;
+
+    const updatedRide = await rideService.acceptRide(id, driverUserId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ride accepted successfully',
+      data: {
+        ride: updatedRide,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Reject a ride that has been matched to the authenticated driver.
+ * Only the assigned driver (ride.driverId === driver.id) may reject.
+ * Ride status: MATCHED → REQUESTED (cleared driverId, available for re-matching).
+ * Driver isAvailable is reset to true.
+ */
+export const rejectRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const driverUserId = req.user!.id;
+    const { id } = req.params;
+
+    const updatedRide = await rideService.rejectRide(id, driverUserId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ride rejected. You are now available for new ride requests.',
+      data: {
+        ride: updatedRide,
       },
     });
   } catch (error) {

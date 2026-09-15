@@ -11,6 +11,8 @@ import {
   updateDriverLocation,
   updateDriverStatus,
   getDriverRides,
+  acceptRide,
+  rejectRide,
 } from '../controllers/driver.controller';
 
 const router = Router();
@@ -33,5 +35,10 @@ router.patch('/status', updateDriverStatus);
 
 // Driver rides endpoint
 router.get('/rides', getDriverRides);
+
+// Ride acceptance / rejection (Task 14)
+// Only the driver assigned to the ride may call these.
+router.patch('/rides/:id/accept', acceptRide);
+router.patch('/rides/:id/reject', rejectRide);
 
 export default router;
