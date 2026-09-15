@@ -76,7 +76,6 @@ describe('Login API & Authentication', () => {
         updatedAt: new Date(),
       };
 
-      // Mock prisma.user.findUnique
       const originalFindUnique = prisma.user.findUnique;
       prisma.user.findUnique = (async (args: any) => {
         if (args.where.email === 'passenger@uberlite.local') {
@@ -91,17 +90,14 @@ describe('Login API & Authentication', () => {
           password: rawPassword,
         });
 
-        // 1. Verify token exists
         assert.ok(result.token, 'Token should be returned');
 
-        // 2. Verify token payload contains user identity and role
         const decoded = jwt.verify(result.token, config.jwtSecret) as any;
         assert.strictEqual(decoded.id, 'user-uuid-101');
         assert.strictEqual(decoded.userId, 'user-uuid-101');
         assert.strictEqual(decoded.email, 'passenger@uberlite.local');
         assert.strictEqual(decoded.role, 'PASSENGER');
 
-        // 3. Verify user profile returned without password
         assert.strictEqual(result.user.id, 'user-uuid-101');
         assert.strictEqual(result.user.email, 'passenger@uberlite.local');
         assert.strictEqual(result.user.name, 'Jane Passenger');
