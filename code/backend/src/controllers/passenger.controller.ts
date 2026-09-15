@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { rideService } from '../services/ride.service';
+import { createRideSchema } from '../validators/ride.validator';
 
 export const getPassengerProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -36,23 +38,7 @@ export const getPassengerProfile = async (req: Request, res: Response, next: Nex
 export const getPassengerRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
-
-    const rides = await prisma.ride.findMany({
-      where: { passengerId },
-      include: {
-        driver: {
-          select: {
-            id: true,
-            vehicleType: true,
-            vehicleModel: true,
-            vehiclePlate: true,
-            rating: true,
-          },
-        },
-        fare: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const rides = await rideService.getPassengerRides(passengerId);
 
     return res.status(200).json({
       success: true,
@@ -65,31 +51,37 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
   }
 };
 
+/**
+ * Request / create a new ride for the authenticated passenger
+ */
 export const requestRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
-    const { pickupLat, pickupLng, pickupAddress, dropoffLat, dropoffLng, dropoffAddress } = req.body;
-
-    if (!pickupAddress || !dropoffAddress) {
-      throw new AppError('Pickup and dropoff addresses are required', 400);
-    }
-
-    const ride = await prisma.ride.create({
-      data: {
-        passengerId,
-        pickupLat: typeof pickupLat === 'number' ? pickupLat : 0.0,
-        pickupLng: typeof pickupLng === 'number' ? pickupLng : 0.0,
-        pickupAddress,
-        dropoffLat: typeof dropoffLat === 'number' ? dropoffLat : 0.0,
-        dropoffLng: typeof dropoffLng === 'number' ? dropoffLng : 0.0,
-        dropoffAddress,
-        status: 'REQUESTED',
-      },
-    });
+    const validatedData = createRideSchema.parse(req.body);
+    const ride = await rideService.createRide(passengerId, validatedData);
 
     return res.status(201).json({
       success: true,
       message: 'Ride requested successfully',
+      data: {
+        ride,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get ride details by ride ID
+ */
+export const getRideDetails = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const ride = await rideService.getRideById(id);
+
+    return res.status(200).json({
+      success: true,
       data: {
         ride,
       },

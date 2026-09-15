@@ -23,3 +23,16 @@ Tested authentication and authorization functionality.
 Outcome:
 27/27 tests passed and TypeScript build completed with 0 errors.
 Learned how JWT authentication and role-based authorization are used to securely control API access.
+
+
+Date: 15 September 2026
+
+Work Done:
+Implemented driver availability and location management APIs for the UberLite backend.
+Added service logic, Zod validation, and role-guarded endpoints for drivers to retrieve and update their availability and current location.
+Implemented ride creation for passengers with pickup and destination locations, initial REQUESTED status, timestamps, and database relationships.
+Tested all new service logic, validation schemas, controller endpoints, and role-based access control.
+
+Outcome:
+60/60 tests passed and TypeScript build completed with 0 errors.
+Learned service-layer design patterns, coordinate validation, and passenger ride request workflows.
