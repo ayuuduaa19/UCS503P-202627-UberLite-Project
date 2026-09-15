@@ -5,6 +5,7 @@ import {
   getPassengerProfile,
   getPassengerRides,
   requestRide,
+  getRideDetails,
 } from '../controllers/passenger.controller';
 
 const router = Router();
@@ -15,5 +16,6 @@ router.use(authenticate, authorize(Role.PASSENGER));
 router.get('/profile', getPassengerProfile);
 router.get('/rides', getPassengerRides);
 router.post('/rides', requestRide);
+router.get('/rides/:id', getRideDetails);
 
 export default router;

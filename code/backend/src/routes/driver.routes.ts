@@ -3,7 +3,11 @@ import { Role } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import {
   getDriverProfile,
+  getDriverAvailability,
   updateAvailability,
+  getDriverLocation,
+  updateLocation,
+  updateDriverStatus,
   getDriverRides,
 } from '../controllers/driver.controller';
 
@@ -13,7 +17,11 @@ const router = Router();
 router.use(authenticate, authorize(Role.DRIVER));
 
 router.get('/profile', getDriverProfile);
+router.get('/availability', getDriverAvailability);
 router.patch('/availability', updateAvailability);
+router.get('/location', getDriverLocation);
+router.patch('/location', updateLocation);
+router.patch('/status', updateDriverStatus);
 router.get('/rides', getDriverRides);
 
 export default router;
