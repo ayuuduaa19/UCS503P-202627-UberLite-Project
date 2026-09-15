@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { matchingService } from '../services/matching.service';
 
 /**
  * Get authenticated passenger profile
@@ -72,7 +73,16 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * Request a ride for the authenticated passenger
+ * Request a ride for the authenticated passenger.
+ *
+ * Flow:
+ *  1. Validate input and create the ride record with status REQUESTED.
+ *  2. Run the driver-matching algorithm to find the nearest available driver.
+ *  3. If a driver is found:
+ *       a. Update the ride with the matched driverId and status MATCHED.
+ *          The `updatedAt` timestamp acts as the assignment timestamp.
+ *       b. Mark the driver as unavailable to prevent double-booking.
+ *  4. Return the final ride state (with driver info when matched).
  */
 export const requestRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -83,11 +93,15 @@ export const requestRide = async (req: Request, res: Response, next: NextFunctio
       throw new AppError('Pickup and dropoff addresses are required', 400);
     }
 
+    const resolvedPickupLat = typeof pickupLat === 'number' ? pickupLat : 0.0;
+    const resolvedPickupLng = typeof pickupLng === 'number' ? pickupLng : 0.0;
+
+    // Step 1: Persist the initial ride record.
     const ride = await prisma.ride.create({
       data: {
         passengerId,
-        pickupLat: typeof pickupLat === 'number' ? pickupLat : 0.0,
-        pickupLng: typeof pickupLng === 'number' ? pickupLng : 0.0,
+        pickupLat: resolvedPickupLat,
+        pickupLng: resolvedPickupLng,
         pickupAddress,
         dropoffLat: typeof dropoffLat === 'number' ? dropoffLat : 0.0,
         dropoffLng: typeof dropoffLng === 'number' ? dropoffLng : 0.0,
@@ -96,11 +110,61 @@ export const requestRide = async (req: Request, res: Response, next: NextFunctio
       },
     });
 
+    // Step 2: Search for the best available driver via the matching module.
+    const match = await matchingService.findAvailableDriver(resolvedPickupLat, resolvedPickupLng);
+
+    if (!match) {
+      // No driver available — return the ride in REQUESTED state so the
+      // client knows to retry or wait.
+      return res.status(201).json({
+        success: true,
+        message: 'Ride requested. No driver is currently available — please try again shortly.',
+        data: {
+          ride,
+          matched: false,
+        },
+      });
+    }
+
+    // Step 3a: Record the selected driver and mark the ride as MATCHED.
+    //          `updatedAt` is automatically set by Prisma and serves as the
+    //          assignment timestamp.
+    const matchedRide = await prisma.ride.update({
+      where: { id: ride.id },
+      data: {
+        driverId: match.driverId,
+        status: 'MATCHED',
+      },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            vehicleType: true,
+            vehicleModel: true,
+            vehiclePlate: true,
+            vehicleColor: true,
+            rating: true,
+            user: {
+              select: {
+                name: true,
+                phone: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Step 3b: Mark the driver unavailable to prevent double-assignment.
+    await matchingService.markDriverUnavailable(match.driverId);
+
     return res.status(201).json({
       success: true,
-      message: 'Ride requested successfully',
+      message: 'Ride requested and driver matched successfully',
       data: {
-        ride,
+        ride: matchedRide,
+        matched: true,
+        matchedAt: matchedRide.updatedAt,
       },
     });
   } catch (error) {
