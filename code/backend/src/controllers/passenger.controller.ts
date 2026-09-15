@@ -4,9 +4,6 @@ import { AppError } from '../middleware/errorHandler';
 import { rideService } from '../services/ride.service';
 import { createRideSchema } from '../validators/ride.validator';
 
-/**
- * Get authenticated passenger profile
- */
 export const getPassengerProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
@@ -38,9 +35,6 @@ export const getPassengerProfile = async (req: Request, res: Response, next: Nex
   }
 };
 
-/**
- * Get ride history for the authenticated passenger
- */
 export const getPassengerRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;

@@ -4,9 +4,6 @@ import { AppError } from './errorHandler';
 import { verifyToken, TokenPayload } from '../lib/jwt';
 import { prisma } from '../lib/prisma';
 
-/**
- * Authentication middleware to validate Bearer tokens and attach authenticated user to req.user
- */
 export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -24,7 +21,6 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
       return next(new AppError('Authentication token is required', 401));
     }
 
-    // Verify and decode JWT token
     let decoded: TokenPayload;
     try {
       decoded = verifyToken<TokenPayload>(token);
@@ -39,7 +35,6 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
       return next(new AppError('Invalid token payload', 401));
     }
 
-    // Attempt to verify user existence in the database if configured
     if (process.env.DATABASE_URL) {
       try {
         const user = await prisma.user.findUnique({
@@ -63,11 +58,9 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
         if (dbError instanceof AppError) {
           return next(dbError);
         }
-        // Fallback to token payload if database query fails
       }
     }
 
-    // Attach user from decoded token payload (fallback for isolated tests / no DB)
     req.user = {
       id: decoded.id,
       email: decoded.email,
@@ -80,17 +73,10 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
   }
 };
 
-/**
- * Aliases for convenient importing of authentication middleware
- */
 export const authenticateToken = authenticate;
 export const requireAuth = authenticate;
 export const authMiddleware = authenticate;
 
-/**
- * Reusable role-based authorization middleware
- * Checks whether the authenticated user has one of the allowed roles.
- */
 export const authorize = (...roles: (Role | string)[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
@@ -105,9 +91,6 @@ export const authorize = (...roles: (Role | string)[]) => {
   };
 };
 
-/**
- * Aliases and role-specific helper middleware
- */
 export const authorizeRoles = authorize;
 export const requireRole = (role: Role | string) => authorize(role);
 export const requirePassenger = authorize(Role.PASSENGER);

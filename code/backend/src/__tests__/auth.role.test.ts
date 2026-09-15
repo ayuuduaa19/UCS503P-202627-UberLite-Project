@@ -26,7 +26,6 @@ import {
   getDriverRides,
 } from '../controllers/driver.controller';
 
-// Helper to create mock Express response
 const createMockResponse = () => {
   const res: any = {
     statusCode: 200,
@@ -149,7 +148,6 @@ describe('Role-Based Authorization Middleware', () => {
     it('should allow multiple authorized roles (e.g. PASSENGER or DRIVER)', () => {
       const middleware = authorizeRoles(Role.PASSENGER, Role.DRIVER);
 
-      // Test passenger
       const passengerReq: any = { user: { id: 'p1', role: Role.PASSENGER } };
       let pNext = false;
       middleware(passengerReq, {} as any, (err?: any) => {
@@ -158,7 +156,6 @@ describe('Role-Based Authorization Middleware', () => {
       });
       assert.strictEqual(pNext, true);
 
-      // Test driver
       const driverReq: any = { user: { id: 'd1', role: Role.DRIVER } };
       let dNext = false;
       middleware(driverReq, {} as any, (err?: any) => {
@@ -167,7 +164,6 @@ describe('Role-Based Authorization Middleware', () => {
       });
       assert.strictEqual(dNext, true);
 
-      // Test unauthorized role (e.g. ADMIN if only passenger/driver allowed)
       const adminReq: any = { user: { id: 'a1', role: Role.ADMIN } };
       let aErr: any = null;
       middleware(adminReq, {} as any, (err?: any) => {

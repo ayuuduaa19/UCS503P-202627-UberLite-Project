@@ -44,6 +44,7 @@ export const getDriverProfile = async (req: Request, res: Response, next: NextFu
 
 /**
  * Get authenticated driver availability and current location
+ * Exported as both getDriverAvailability (gurleen) and getAvailability (ayush) below
  */
 export const getDriverAvailability = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -55,6 +56,21 @@ export const getDriverAvailability = async (req: Request, res: Response, next: N
       data: {
         availability,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Alias used by Ayush's routes and tests */
+export const getAvailability = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const availability = await driverService.getAvailability(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: availability,
     });
   } catch (error) {
     next(error);
@@ -108,17 +124,13 @@ export const updateAvailability = async (req: Request, res: Response, next: Next
 export const getDriverLocation = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const data = await driverService.getAvailabilityAndLocation(userId);
+    const location = await driverService.getLocation(userId);
 
     return res.status(200).json({
       success: true,
       data: {
-        location: {
-          currentLat: data.currentLat,
-          currentLng: data.currentLng,
-          isAvailable: data.isAvailable,
-          updatedAt: data.updatedAt,
-        },
+        ...location,
+        location,
       },
     });
   } catch (error) {
@@ -128,12 +140,13 @@ export const getDriverLocation = async (req: Request, res: Response, next: NextF
 
 /**
  * Update authenticated driver current location coordinates
+ * Supports both {currentLat, currentLng} and {lat, lng} / {latitude, longitude}
  */
 export const updateLocation = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const validatedData = updateLocationSchema.parse(req.body);
-    const updatedDriver = await driverService.updateLocation(userId, validatedData);
+    const parsed = updateLocationSchema.parse(req.body);
+    const updatedDriver = await driverService.updateLocation(userId, parsed.lat, parsed.lng);
 
     return res.status(200).json({
       success: true,
@@ -147,8 +160,11 @@ export const updateLocation = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+/** Alias used by Ayush's routes */
+export const updateDriverLocation = updateLocation;
+
 /**
- * Update authenticated driver availability and/or current location
+ * Update authenticated driver availability and/or current location (combined status endpoint)
  */
 export const updateDriverStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {

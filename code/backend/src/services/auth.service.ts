@@ -8,7 +8,6 @@ import { RegisterInput, LoginInput } from '../validators/auth.validator';
 
 export class AuthService {
   async register(input: RegisterInput) {
-    // 1. Check for existing user by email
     const existingUser = await prisma.user.findUnique({
       where: { email: input.email },
     });
@@ -17,7 +16,6 @@ export class AuthService {
       throw new AppError('A user with this email already exists', 409);
     }
 
-    // 2. If registering as DRIVER, check for existing license number or vehicle plate
     if (input.role === 'DRIVER') {
       if (input.licenseNumber) {
         const existingLicense = await prisma.driver.findUnique({
@@ -38,11 +36,9 @@ export class AuthService {
       }
     }
 
-    // 3. Hash password securely
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(input.password, saltRounds);
 
-    // 4. Persist user and optional driver profile with Prisma
     try {
       if (input.role === 'DRIVER') {
         const user = await prisma.user.create({
@@ -77,7 +73,6 @@ export class AuthService {
         return user;
       }
 
-      // Default: PASSENGER
       const user = await prisma.user.create({
         data: {
           email: input.email,
