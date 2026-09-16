@@ -258,29 +258,34 @@ graph TD
     D([Driver])
     DB[(PostgreSQL)]
 
-    P -->|Credentials| P1["1.0 Authentication"]
-    D -->|Credentials| P1
-    P1 -->|JWT Token| P
-    P1 -->|JWT Token| D
-    P1 <-->|User read/write| DB
+    A["1.0 Authentication"]
+    R["2.0 Ride Management"]
+    DM["3.0 Driver Management"]
+    M["4.0 Driver Matching"]
+    L["5.0 Location Services"]
 
-    P -->|"Pickup and Dropoff coords"| P2["2.0 Ride Management"]
-    P2 -->|Ride record| DB
-    P2 -->|"Ride details and status"| P
+    P -->|Credentials| A
+    D -->|Credentials| A
+    A -->|JWT| P
+    A -->|JWT| D
+    A <-->|User Data| DB
 
-    D -->|"Ride accept/reject"| P3["3.0 Driver Management"]
-    D -->|"Availability toggle, GPS update"| P3
-    P3 <-->|Driver record read/write| DB
-    P3 -->|Updated status| D
+    P -->|Ride Request| R
+    R -->|Ride Status| P
+    R -->|Ride Record| DB
 
-    P -->|Pickup location| P4["4.0 Driver Matching"]
-    P4 <-->|Query available drivers| DB
-    P4 -->|Sorted candidate list| P
-    P4 -->|Assign driver to ride| DB
+    D -->|Ride Action| DM
+    D -->|Availability / GPS| DM
+    DM -->|Driver Status| D
+    DM <-->|Driver Data| DB
 
-    P -->|"Pickup and Dropoff coords"| P5["5.0 Location Services"]
-    P5 -->|"Distance km, Duration min"| P
-```
+    R -->|Pickup Location| M
+    M -->|Driver Assignment| R
+    M <-->|Available Drivers| DB
+
+    R -->|Coordinates| L
+    L -->|Distance / Duration| R
+    ```
 
 #### 2.3.3 — DFD Level 2: Driver Matching Process (4.0)
 
