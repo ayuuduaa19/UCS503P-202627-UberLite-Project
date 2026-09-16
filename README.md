@@ -253,40 +253,41 @@ graph LR
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'secondaryColor': '#ffb6c1', 'tertiaryColor': '#ffb6c1'}}}%%
-graph TD
-    P([Passenger])
-    D([Driver])
-    DB[(PostgreSQL)]
+graph LR
 
-    A["1.0 Authentication"]
-    R["2.0 Ride Management"]
-    DM["3.0 Driver Management"]
-    M["4.0 Driver Matching"]
-    L["5.0 Location Services"]
+  P([Passenger])
+  D([Driver])
 
-    P -->|Credentials| A
-    D -->|Credentials| A
-    A -->|JWT| P
-    A -->|JWT| D
-    A <-->|User Data| DB
+  A["1.0 Authentication"]
+  R["2.0 Ride Management"]
+  DM["3.0 Driver Management"]
+  M["4.0 Driver Matching"]
+  L["5.0 Location Services"]
 
-    P -->|Ride Request| R
-    R -->|Ride Status| P
-    R -->|Ride Record| DB
+  DB[(PostgreSQL)]
 
-    D -->|Ride Action| DM
-    D -->|Availability / GPS| DM
-    DM -->|Driver Status| D
-    DM <-->|Driver Data| DB
+  P -->|Credentials| A
+  D -->|Credentials| A
+  A -->|JWT Token| P
+  A -->|JWT Token| D
+  A -->|User Data| DB
 
-    R -->|Pickup Location| M
-    M -->|Driver Assignment| R
-    M <-->|Available Drivers| DB
+  P -->|Ride Request| R
+  R -->|Ride Status| P
+  R -->|Ride Record| DB
 
-    R -->|Coordinates| L
-    L -->|Distance / Duration| R
+  D -->|Ride Action| DM
+  D -->|Availability / GPS| DM
+  DM -->|Driver Status| D
+  DM -->|Driver Data| DB
+
+  R -->|Pickup Location| M
+  M -->|Driver Assignment| R
+  M -->|Available Drivers| DB
+
+  R -->|Coordinates| L
+  L -->|Distance / Duration| R
 ```
-
 #### 2.3.3 — DFD Level 2: Driver Matching Process (4.0)
 
 ```mermaid
