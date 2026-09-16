@@ -1,4 +1,4 @@
-﻿# UberLite 🚗
+# UberLite 🚗
 
 > **UCS503P — Software Engineering Project**
 > A lightweight ride-hailing system built with React + TypeScript (frontend) and Node.js + Express + Prisma + PostgreSQL (backend).
@@ -54,6 +54,7 @@ UberLite is a simplified ride-hailing platform implementing core functionality:
 #### 2.1.1 — Use-Case Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'secondaryColor': '#ffb6c1', 'tertiaryColor': '#ffb6c1'}}}%%
 graph TD
     subgraph Actors
         P((Passenger))
@@ -143,6 +144,7 @@ graph TD
 #### Activity Diagram — Full Ride Booking Flow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'secondaryColor': '#ffb6c1', 'tertiaryColor': '#ffb6c1'}}}%%
 flowchart TD
     A([Passenger Opens App]) --> B[Login / Register]
     B --> C{Auth Success?}
@@ -180,6 +182,7 @@ flowchart TD
 #### Swimlane Diagram — Ride Request Sequence
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'actorBkg': '#ffb6c1', 'actorBorder': '#e75480', 'activationBkgColor': '#ff8fab', 'noteBkgColor': '#ffb6c1'}}}%%
 sequenceDiagram
     participant P as Passenger
     participant API as Express API
@@ -235,6 +238,7 @@ sequenceDiagram
 #### 2.3.1 — DFD Level 0: Context Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'secondaryColor': '#ffb6c1', 'tertiaryColor': '#ffb6c1'}}}%%
 graph LR
     P([Passenger]) -->|"Ride requests, Auth credentials, Location"| SYS[["UberLite System"]]
     SYS -->|"JWT Token, Ride status, Driver details"| P
@@ -248,6 +252,7 @@ graph LR
 #### 2.3.2 — DFD Level 1
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'secondaryColor': '#ffb6c1', 'tertiaryColor': '#ffb6c1'}}}%%
 graph TD
     P([Passenger])
     D([Driver])
@@ -280,6 +285,7 @@ graph TD
 #### 2.3.3 — DFD Level 2: Driver Matching Process (4.0)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffb6c1', 'primaryBorderColor': '#e75480', 'primaryTextColor': '#1a1a1a', 'secondaryColor': '#ffb6c1', 'tertiaryColor': '#ffb6c1'}}}%%
 flowchart TD
     IN[/"Pickup Location lat and lng"/] --> V1["4.1 Validate and Normalize Coordinates"]
     OPT[/"Options: maxRadiusKm, vehicleType, limit"/] --> V1
