@@ -274,3 +274,51 @@ export const rejectRide = async (req: Request, res: Response, next: NextFunction
     next(error);
   }
 };
+
+/**
+ * Start a ride that the authenticated driver has already accepted.
+ * Only the assigned driver (ride.driverId === driver.id) may start.
+ * Ride status: ACCEPTED → IN_PROGRESS. Driver remains unavailable.
+ */
+export const startRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const driverUserId = req.user!.id;
+    const { id } = req.params;
+
+    const updatedRide = await rideService.startRide(id, driverUserId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ride started successfully',
+      data: {
+        ride: updatedRide,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Complete a ride that is currently in progress for the authenticated driver.
+ * Only the assigned driver (ride.driverId === driver.id) may complete.
+ * Ride status: IN_PROGRESS → COMPLETED. Driver isAvailable reset to true.
+ */
+export const completeRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const driverUserId = req.user!.id;
+    const { id } = req.params;
+
+    const updatedRide = await rideService.completeRide(id, driverUserId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ride completed successfully',
+      data: {
+        ride: updatedRide,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
