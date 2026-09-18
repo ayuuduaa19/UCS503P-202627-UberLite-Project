@@ -1,7 +1,7 @@
 import {
   calculateDistance,
   estimateTravelTimeMinutes,
-  CoordinatesInput,
+  type CoordinatesInput,
   normalizeCoordinates,
 } from './location';
 

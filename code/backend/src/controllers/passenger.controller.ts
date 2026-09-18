@@ -3,12 +3,14 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { rideService } from '../services/ride.service';
 import { matchingService } from '../services/matching.service';
+import { fareService } from '../services/fare.service';
 import { createRideSchema } from '../validators/ride.validator';
 import {
   matchingOptionsSchema,
   findNearbyDriversSchema,
   assignDriverSchema,
 } from '../validators/matching.validator';
+import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
 export const getPassengerProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -159,6 +161,51 @@ export const getNearbyDrivers = async (req: Request, res: Response, next: NextFu
       data: {
         drivers,
         count: drivers.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get estimated fare for a ride using pickup/dropoff coordinates and vehicle type
+ * Formula: BaseFare + (distanceKm × RatePerKm)
+ */
+export const estimateRideFare = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const fareEstimate = await fareService.estimateFareForRide(id);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        fareEstimate,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Calculate estimated fare directly from ride locations (pickup/dropoff coordinates)
+ * Formula: BaseFare + (distanceKm × RatePerKm)
+ */
+export const estimateFare = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const input = estimateFareFromLocationsSchema.parse(req.body);
+    const fareEstimate = fareService.estimateFareFromLocations(
+      { lat: input.pickupLat, lng: input.pickupLng },
+      { lat: input.dropoffLat, lng: input.dropoffLng },
+      input.vehicleType
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Fare estimated successfully',
+      data: {
+        fareEstimate,
       },
     });
   } catch (error) {

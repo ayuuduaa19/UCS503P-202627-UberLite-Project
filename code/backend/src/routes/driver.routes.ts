@@ -11,6 +11,7 @@ import {
   updateDriverLocation,
   updateDriverStatus,
   getDriverRides,
+  completeRide,
 } from '../controllers/driver.controller';
 
 const router = Router();
@@ -33,5 +34,8 @@ router.patch('/status', updateDriverStatus);
 
 // Driver rides endpoint
 router.get('/rides', getDriverRides);
+
+// Ride completion with final fare calculation (task #18)
+router.post('/rides/:id/complete', completeRide);
 
 export default router;

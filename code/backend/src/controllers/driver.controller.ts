@@ -2,10 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { driverService } from '../services/driver.service';
+import { fareService } from '../services/fare.service';
 import {
   updateLocationSchema,
   updateDriverStatusSchema,
 } from '../validators/driver.validator';
+import { completeRideFareSchema } from '../validators/fare.validator';
 
 /**
  * Get authenticated driver profile and vehicle info
@@ -219,6 +221,31 @@ export const getDriverRides = async (req: Request, res: Response, next: NextFunc
       data: {
         rides,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Complete a ride: calculate and persist the final fare, set status to COMPLETED.
+ * Formula: BaseFare + (distanceKm × RatePerKm)
+ * Only the driver assigned to the ride may complete it.
+ */
+export const completeRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const driverUserId = req.user!.id;
+    const { distanceKm } = req.body && Object.keys(req.body).length > 0
+      ? completeRideFareSchema.parse(req.body)
+      : { distanceKm: undefined };
+
+    const result = await fareService.completeFare(id, driverUserId, distanceKm);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ride completed and fare recorded successfully',
+      data: result,
     });
   } catch (error) {
     next(error);

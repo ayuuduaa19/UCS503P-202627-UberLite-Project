@@ -40,4 +40,20 @@ Outcome:
 121/121 tests passed and TypeScript build completed with 0 errors.
 Learned about geospatial distance calculation, modular driver matching, availability handling, and passenger ride creation workflows.
 
+
+Date: 18 September 2026
+
+Work Done:
+
+Implemented a predefined fare calculation module using the formula BaseFare + (Distance × RatePerKm) across different vehicle types.
+Added fare estimation service and API endpoints to calculate estimated fares from pickup and dropoff locations and for existing rides.
+Implemented final fare calculation and persistence when a driver completes a ride using predefined fare rules and recorded ride distance.
+Implemented atomic transactions to create fare records, update ride status to COMPLETED, record final distance, and maintain PENDING payment status.
+Added Zod validation, role-guarded passenger and driver endpoints, and frontend fare utility functions for fare calculations and API integration.
+Added unit and integration tests covering fare estimation, ride completion, authorization, and validation edge cases.
+
+Outcome:
+
+155/155 tests passed and TypeScript build completed with 0 errors.
+Learned about fare rule modeling, atomic database transactions for ride completion, final fare persistence, and fare service integration across backend and frontend.
 
