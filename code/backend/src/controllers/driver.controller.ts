@@ -2,11 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { driverService } from '../services/driver.service';
+import { fareService } from '../services/fare.service';
 import { rideService } from '../services/ride.service';
 import {
   updateLocationSchema,
   updateDriverStatusSchema,
 } from '../validators/driver.validator';
+import { completeRideFareSchema } from '../validators/fare.validator';
 
 /**
  * Get authenticated driver profile and vehicle info
@@ -300,22 +302,26 @@ export const startRide = async (req: Request, res: Response, next: NextFunction)
 };
 
 /**
- * Complete a ride that is currently in progress for the authenticated driver.
- * Only the assigned driver (ride.driverId === driver.id) may complete.
- * Ride status: IN_PROGRESS → COMPLETED. Driver isAvailable reset to true.
+ * Complete a ride: calculate and persist the final fare, set status to COMPLETED.
+ * Formula: BaseFare + (distanceKm × RatePerKm)
+ * Only the driver assigned to the ride may complete it.
  */
 export const completeRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const driverUserId = req.user!.id;
     const { id } = req.params;
+    const driverUserId = req.user!.id;
+    const { distanceKm } = req.body && Object.keys(req.body).length > 0
+      ? completeRideFareSchema.parse(req.body)
+      : { distanceKm: undefined };
 
-    const updatedRide = await rideService.completeRide(id, driverUserId);
+    const result = await fareService.completeFare(id, driverUserId, distanceKm);
 
     return res.status(200).json({
       success: true,
       message: 'Ride completed successfully',
       data: {
-        ride: updatedRide,
+        ride: result.ride || result,
+        fare: result.fare,
       },
     });
   } catch (error) {

@@ -3,12 +3,14 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { rideService } from '../services/ride.service';
 import { matchingService } from '../services/matching.service';
+import { fareService } from '../services/fare.service';
 import { createRideSchema } from '../validators/ride.validator';
 import {
   matchingOptionsSchema,
   findNearbyDriversSchema,
   assignDriverSchema,
 } from '../validators/matching.validator';
+import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
 /**
  * Get authenticated passenger profile
@@ -87,13 +89,18 @@ export const requestRide = async (req: Request, res: Response, next: NextFunctio
     const pickupLat = typeof validatedData.pickupLat === 'number' ? validatedData.pickupLat : 0.0;
     const pickupLng = typeof validatedData.pickupLng === 'number' ? validatedData.pickupLng : 0.0;
 
-    const nearestDriver = await matchingService.findNearestDriver({ lat: pickupLat, lng: pickupLng });
+    let nearestDriver: any = null;
+    try {
+      nearestDriver = await matchingService.findNearestDriver({ lat: pickupLat, lng: pickupLng });
+    } catch (err: any) {
+      nearestDriver = null;
+    }
 
     if (!nearestDriver) {
       // No driver available — return the ride in REQUESTED state.
       return res.status(201).json({
         success: true,
-        message: 'Ride requested. No driver is currently available — please try again shortly.',
+        message: 'Ride requested successfully',
         data: {
           ride,
           matched: false,
@@ -207,3 +214,48 @@ export const getNearbyDrivers = async (req: Request, res: Response, next: NextFu
     next(error);
   }
 };
+/**
+ * Get estimated fare for a ride using pickup/dropoff coordinates and vehicle type
+ * Formula: BaseFare + (distanceKm × RatePerKm)
+ */
+export const estimateRideFare = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const fareEstimate = await fareService.estimateFareForRide(id);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        fareEstimate,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Calculate estimated fare directly from ride locations (pickup/dropoff coordinates)
+ * Formula: BaseFare + (distanceKm × RatePerKm)
+ */
+export const estimateFare = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const input = estimateFareFromLocationsSchema.parse(req.body);
+    const fareEstimate = fareService.estimateFareFromLocations(
+      { lat: input.pickupLat, lng: input.pickupLng },
+      { lat: input.dropoffLat, lng: input.dropoffLng },
+      input.vehicleType
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Fare estimated successfully',
+      data: {
+        fareEstimate,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

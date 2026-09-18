@@ -17,7 +17,6 @@ import {
   completeRide,
 } from '../controllers/driver.controller';
 
-
 const router = Router();
 router.use(authenticate, authorize(Role.DRIVER));
 
@@ -44,9 +43,10 @@ router.get('/rides', getDriverRides);
 router.patch('/rides/:id/accept', acceptRide);
 router.patch('/rides/:id/reject', rejectRide);
 
-// Ride status transitions (Task 15)
+// Ride status transitions (Task 15) & completion with final fare calculation (Task 18)
 // Only the driver assigned to the ride may call these.
 router.patch('/rides/:id/start', startRide);
 router.patch('/rides/:id/complete', completeRide);
+router.post('/rides/:id/complete', completeRide);
 
 export default router;

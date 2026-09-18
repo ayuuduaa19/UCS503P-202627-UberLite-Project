@@ -9,6 +9,8 @@ import {
   matchRideWithDriver,
   assignRideDriver,
   getNearbyDrivers,
+  estimateRideFare,
+  estimateFare,
 } from '../controllers/passenger.controller';
 
 const router = Router();
@@ -24,5 +26,9 @@ router.post('/rides/:id/match', matchRideWithDriver);
 router.post('/rides/:id/assign', assignRideDriver);
 router.post('/drivers/nearby', getNearbyDrivers);
 
-export default router;
+// Fare estimation endpoints (task #17)
+router.get('/rides/:id/fare/estimate', estimateRideFare);
+router.post('/fare/estimate', estimateFare);
+router.post('/rides/fare/estimate', estimateFare);
 
+export default router;
