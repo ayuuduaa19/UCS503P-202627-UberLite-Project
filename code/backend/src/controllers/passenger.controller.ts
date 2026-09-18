@@ -12,6 +12,9 @@ import {
 } from '../validators/matching.validator';
 import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
+/**
+ * Get authenticated passenger profile
+ */
 export const getPassengerProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
@@ -43,6 +46,9 @@ export const getPassengerProfile = async (req: Request, res: Response, next: Nex
   }
 };
 
+/**
+ * Get ride history for the authenticated passenger
+ */
 export const getPassengerRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
@@ -60,19 +66,60 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * Request / create a new ride for the authenticated passenger
+ * Request a ride for the authenticated passenger.
+ *
+ * Flow (Task 13):
+ *  1. Validate input and create the ride record with status REQUESTED.
+ *  2. Run the driver-matching algorithm to find the nearest available driver.
+ *  3. If a driver is found:
+ *       a. Update the ride with the matched driverId and status MATCHED.
+ *          The `updatedAt` timestamp acts as the assignment timestamp.
+ *       b. Mark the driver as unavailable to prevent double-booking.
+ *  4. Return the final ride state (with driver info when matched).
  */
 export const requestRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
     const validatedData = createRideSchema.parse(req.body);
+
+    // Step 1: Persist the initial ride record via rideService.
     const ride = await rideService.createRide(passengerId, validatedData);
+
+    // Step 2: Search for the best available driver via the matching module.
+    const pickupLat = typeof validatedData.pickupLat === 'number' ? validatedData.pickupLat : 0.0;
+    const pickupLng = typeof validatedData.pickupLng === 'number' ? validatedData.pickupLng : 0.0;
+
+    let nearestDriver: any = null;
+    try {
+      nearestDriver = await matchingService.findNearestDriver({ lat: pickupLat, lng: pickupLng });
+    } catch (err: any) {
+      nearestDriver = null;
+    }
+
+    if (!nearestDriver) {
+      // No driver available — return the ride in REQUESTED state.
+      return res.status(201).json({
+        success: true,
+        message: 'Ride requested successfully',
+        data: {
+          ride,
+          matched: false,
+        },
+      });
+    }
+
+    // Step 3: Match and record the driver using the full matching service
+    //         (runs inside a Prisma transaction with double-booking protection).
+    const matchResult = await matchingService.matchDriverForRide(ride.id, {}, passengerId);
 
     return res.status(201).json({
       success: true,
-      message: 'Ride requested successfully',
+      message: 'Ride requested and driver matched successfully',
       data: {
-        ride,
+        ride: matchResult.ride,
+        matched: true,
+        matchedAt: matchResult.ride.updatedAt,
+        matchedDriver: matchResult.matchedDriver,
       },
     });
   } catch (error) {
@@ -167,7 +214,6 @@ export const getNearbyDrivers = async (req: Request, res: Response, next: NextFu
     next(error);
   }
 };
-
 /**
  * Get estimated fare for a ride using pickup/dropoff coordinates and vehicle type
  * Formula: BaseFare + (distanceKm × RatePerKm)

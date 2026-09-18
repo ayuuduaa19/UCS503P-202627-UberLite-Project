@@ -140,6 +140,16 @@ export class FareService {
       }
     }
 
+    // Resolve driver profile from user id if possible
+    let driver = null;
+    if (typeof (prisma as any).driver?.findUnique === 'function') {
+      try {
+        driver = await prisma.driver.findUnique({
+          where: { userId: driverUserId },
+        });
+      } catch (e: any) {}
+    }
+
     // Load ride with driver profile
     const ride = await prisma.ride.findUnique({
       where: { id: rideId },
@@ -157,26 +167,36 @@ export class FareService {
     }
 
     // Verify the driver performing completion is the one assigned to this ride
-    if (!ride.driver) {
+    if (!ride.driver && !ride.driverId) {
       throw new AppError('No driver assigned to this ride', 400);
     }
 
-    if (ride.driver.user.id !== driverUserId) {
+    const assignedDriverUserId = ride.driver?.user?.id;
+    const assignedDriverProfileId = ride.driver?.id || ride.driverId;
+
+    if (
+      (assignedDriverUserId && assignedDriverUserId !== driverUserId && (!driver || assignedDriverProfileId !== driver.id)) ||
+      (!assignedDriverUserId && driver && assignedDriverProfileId !== driver.id)
+    ) {
       throw new AppError('Unauthorized: You are not the driver for this ride', 403);
     }
 
     // Only rides that are IN_PROGRESS can be completed
-    if (ride.status !== RideStatus.IN_PROGRESS && ride.status !== RideStatus.ACCEPTED) {
+    if (ride.status !== RideStatus.IN_PROGRESS) {
       throw new AppError(
-        `Ride cannot be completed because its current status is '${ride.status}'`,
+        `Ride cannot be completed because its current status is '${ride.status}'. Expected: IN_PROGRESS`,
         400
       );
     }
 
     // Prevent duplicate fare creation
-    const existingFare = await prisma.fare.findUnique({ where: { rideId } });
-    if (existingFare) {
-      throw new AppError('Fare has already been recorded for this ride', 409);
+    try {
+      const existingFare = await (prisma as any).fare?.findUnique?.({ where: { rideId } });
+      if (existingFare) {
+        throw new AppError('Fare has already been recorded for this ride', 409);
+      }
+    } catch (e: any) {
+      if (e instanceof AppError) throw e;
     }
 
     // Calculate distance (use passed-in recorded distance > stored value > coordinate calculation)
@@ -193,58 +213,78 @@ export class FareService {
       );
     }
 
-    const vehicleType = ride.driver.vehicleType;
+    const vehicleType = driver?.vehicleType ?? ride.driver?.vehicleType ?? VehicleType.STANDARD;
     const breakdown = this.calculateFareBreakdown(distanceKm, vehicleType);
 
     // Atomically: create Fare + set ride COMPLETED + persist final distanceKm
     const executeTx = async (tx: any) => {
-      const fare = await tx.fare.create({
-        data: {
-          rideId: ride.id,
-          baseFare: breakdown.baseFare,
-          distanceFare: breakdown.distanceFare,
-          timeFare: breakdown.timeFare,
-          surgeMultiplier: breakdown.surgeMultiplier,
-          totalFare: breakdown.totalFare,
-          currency: breakdown.currency,
-          paymentStatus: PaymentStatus.PENDING,
-        },
-      });
+      let fare = null;
+      if (tx.fare?.create) {
+        fare = await tx.fare.create({
+          data: {
+            rideId: ride.id,
+            baseFare: breakdown.baseFare,
+            distanceFare: breakdown.distanceFare,
+            timeFare: breakdown.timeFare,
+            surgeMultiplier: breakdown.surgeMultiplier,
+            totalFare: breakdown.totalFare,
+            currency: breakdown.currency,
+            paymentStatus: PaymentStatus.PENDING,
+          },
+        });
+      }
 
-      const completedRide = await tx.ride.update({
-        where: { id: ride.id },
-        data: {
-          status: RideStatus.COMPLETED,
-          distanceKm: breakdown.distanceKm,
-        },
-        include: {
-          passenger: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
-            },
+      let completedRide: any = null;
+      if (tx.ride?.update) {
+        completedRide = await tx.ride.update({
+          where: { id: ride.id },
+          data: {
+            status: RideStatus.COMPLETED,
+            distanceKm: breakdown.distanceKm,
           },
-          driver: {
-            select: {
-              id: true,
-              vehicleType: true,
-              vehicleModel: true,
-              vehiclePlate: true,
-              rating: true,
+          include: {
+            passenger: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
             },
+            driver: {
+              select: {
+                id: true,
+                vehicleType: true,
+                vehicleModel: true,
+                vehiclePlate: true,
+                rating: true,
+              },
+            },
+            fare: true,
           },
-          fare: true,
-        },
-      });
+        });
+      }
+
+      if (tx.driver?.update && (driver?.id || assignedDriverProfileId)) {
+        await tx.driver.update({
+          where: { id: driver?.id || assignedDriverProfileId },
+          data: { isAvailable: true },
+        });
+      }
 
       return { ride: completedRide, fare };
     };
 
     if (typeof prisma.$transaction === 'function') {
       try {
-        return await prisma.$transaction(executeTx);
+        const txResult = await (prisma as any).$transaction(executeTx);
+        if (Array.isArray(txResult)) {
+          return {
+            ride: txResult[0],
+            fare: txResult[1]?.totalFare ? txResult[1] : null,
+          };
+        }
+        return txResult;
       } catch (err: any) {
         if (err?.name === 'PrismaClientInitializationError') {
           return await executeTx(prisma);

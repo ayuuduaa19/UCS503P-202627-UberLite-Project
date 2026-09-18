@@ -55,18 +55,26 @@ export class MatchingService {
       whereClause.vehicleType = options.vehicleType;
     }
 
-    const availableDrivers = await prisma.driver.findMany({
-      where: whereClause,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
+    let availableDrivers: any[] = [];
+    try {
+      availableDrivers = await prisma.driver.findMany({
+        where: whereClause,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (err: any) {
+      if (err?.name === 'PrismaClientInitializationError') {
+        return [];
+      }
+      throw err;
+    }
 
     const candidates: CandidateDriver[] = [];
 

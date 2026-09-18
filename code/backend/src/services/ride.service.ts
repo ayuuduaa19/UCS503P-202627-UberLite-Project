@@ -98,6 +98,309 @@ export class RideService {
 
     return ride;
   }
+
+  /**
+   * Accept a ride assigned to the authenticated driver.
+   *
+   * Rules enforced:
+   *  - Ride must exist.
+   *  - Ride status must be MATCHED (not already accepted/cancelled/etc.).
+   *  - The requesting driver must be the one assigned to this ride.
+   *
+   * On success: ride status → ACCEPTED. Driver isAvailable remains false
+   * (already set false at match time; no change needed here).
+   */
+  async acceptRide(rideId: string, driverUserId: string) {
+    // Resolve driver profile from user id
+    const driver = await prisma.driver.findUnique({
+      where: { userId: driverUserId },
+    });
+
+    if (!driver) {
+      throw new AppError('Driver profile not found', 404);
+    }
+
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+      include: {
+        passenger: {
+          select: { id: true, name: true, phone: true, email: true },
+        },
+        driver: {
+          select: {
+            id: true,
+            vehicleType: true,
+            vehicleModel: true,
+            vehiclePlate: true,
+            vehicleColor: true,
+            rating: true,
+            user: { select: { name: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    if (!ride) {
+      throw new AppError('Ride not found', 404);
+    }
+
+    if (ride.status !== RideStatus.MATCHED) {
+      throw new AppError(
+        `Ride cannot be accepted because its current status is '${ride.status}'`,
+        400
+      );
+    }
+
+    if (ride.driverId !== driver.id) {
+      throw new AppError(
+        'Forbidden: you are not the driver assigned to this ride',
+        403
+      );
+    }
+
+    const updatedRide = await prisma.ride.update({
+      where: { id: rideId },
+      data: { status: RideStatus.ACCEPTED },
+      include: {
+        passenger: {
+          select: { id: true, name: true, phone: true, email: true },
+        },
+        driver: {
+          select: {
+            id: true,
+            vehicleType: true,
+            vehicleModel: true,
+            vehiclePlate: true,
+            vehicleColor: true,
+            rating: true,
+            user: { select: { name: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    return updatedRide;
+  }
+
+  /**
+   * Start a ride that has been accepted by the authenticated driver.
+   *
+   * Rules enforced:
+   *  - Ride must exist.
+   *  - Ride status must be ACCEPTED.
+   *  - The requesting driver must be the one assigned to this ride.
+   *
+   * On success:
+   *  - Ride status → IN_PROGRESS.
+   *  - Driver isAvailable → false (confirmed atomically so no concurrent
+   *    matching can assign them a second ride between ACCEPTED and IN_PROGRESS).
+   */
+  async startRide(rideId: string, driverUserId: string) {
+    // Resolve driver profile from user id
+    const driver = await prisma.driver.findUnique({
+      where: { userId: driverUserId },
+    });
+
+    if (!driver) {
+      throw new AppError('Driver profile not found', 404);
+    }
+
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+    });
+
+    if (!ride) {
+      throw new AppError('Ride not found', 404);
+    }
+
+    if (ride.status !== RideStatus.ACCEPTED) {
+      throw new AppError(
+        `Ride cannot be started because its current status is '${ride.status}'. Expected: ACCEPTED`,
+        400
+      );
+    }
+
+    if (ride.driverId !== driver.id) {
+      throw new AppError(
+        'Forbidden: you are not the driver assigned to this ride',
+        403
+      );
+    }
+
+    // Run both updates atomically: mark ride IN_PROGRESS and confirm driver
+    // unavailable to prevent any conflicting ride assignment.
+    const [updatedRide] = await prisma.$transaction([
+      prisma.ride.update({
+        where: { id: rideId },
+        data: { status: RideStatus.IN_PROGRESS },
+        include: {
+          passenger: {
+            select: { id: true, name: true, phone: true, email: true },
+          },
+          driver: {
+            select: {
+              id: true,
+              vehicleType: true,
+              vehicleModel: true,
+              vehiclePlate: true,
+              vehicleColor: true,
+              rating: true,
+              user: { select: { name: true, phone: true } },
+            },
+          },
+        },
+      }),
+      prisma.driver.update({
+        where: { id: driver.id },
+        data: { isAvailable: false },
+      }),
+    ]);
+
+    return updatedRide;
+  }
+
+  /**
+   * Complete a ride that is currently in progress for the authenticated driver.
+   *
+   * Rules enforced:
+   *  - Ride must exist.
+   *  - Ride status must be IN_PROGRESS.
+   *  - The requesting driver must be the one assigned to this ride.
+   *
+   * On success:
+   *  - Ride status → COMPLETED.
+   *  - Driver isAvailable → true (they are free to take new rides).
+   */
+  async completeRide(rideId: string, driverUserId: string) {
+    // Resolve driver profile from user id
+    const driver = await prisma.driver.findUnique({
+      where: { userId: driverUserId },
+    });
+
+    if (!driver) {
+      throw new AppError('Driver profile not found', 404);
+    }
+
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+    });
+
+    if (!ride) {
+      throw new AppError('Ride not found', 404);
+    }
+
+    if (ride.status !== RideStatus.IN_PROGRESS) {
+      throw new AppError(
+        `Ride cannot be completed because its current status is '${ride.status}'. Expected: IN_PROGRESS`,
+        400
+      );
+    }
+
+    if (ride.driverId !== driver.id) {
+      throw new AppError(
+        'Forbidden: you are not the driver assigned to this ride',
+        403
+      );
+    }
+
+    // Run both updates atomically: mark ride COMPLETED and free up the driver
+    const [updatedRide] = await prisma.$transaction([
+      prisma.ride.update({
+        where: { id: rideId },
+        data: { status: RideStatus.COMPLETED },
+        include: {
+          passenger: {
+            select: { id: true, name: true, phone: true, email: true },
+          },
+          driver: {
+            select: {
+              id: true,
+              vehicleType: true,
+              vehicleModel: true,
+              vehiclePlate: true,
+              vehicleColor: true,
+              rating: true,
+              user: { select: { name: true, phone: true } },
+            },
+          },
+        },
+      }),
+      prisma.driver.update({
+        where: { id: driver.id },
+        data: { isAvailable: true },
+      }),
+    ]);
+
+    return updatedRide;
+  }
+
+  /**
+   * Reject a ride assigned to the authenticated driver.
+   *
+   * Rules enforced:
+   *  - Ride must exist.
+   *  - Ride status must be MATCHED.
+   *  - The requesting driver must be the one assigned to this ride.
+   *
+   * On success:
+   *  - Ride status → REQUESTED, driverId cleared (ride is available for
+   *    re-matching to another driver).
+   *  - Driver isAvailable → true (they are free to be matched again).
+   */
+  async rejectRide(rideId: string, driverUserId: string) {
+    // Resolve driver profile from user id
+    const driver = await prisma.driver.findUnique({
+      where: { userId: driverUserId },
+    });
+
+    if (!driver) {
+      throw new AppError('Driver profile not found', 404);
+    }
+
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+    });
+
+    if (!ride) {
+      throw new AppError('Ride not found', 404);
+    }
+
+    if (ride.status !== RideStatus.MATCHED) {
+      throw new AppError(
+        `Ride cannot be rejected because its current status is '${ride.status}'`,
+        400
+      );
+    }
+
+    if (ride.driverId !== driver.id) {
+      throw new AppError(
+        'Forbidden: you are not the driver assigned to this ride',
+        403
+      );
+    }
+
+    // Run both updates atomically so the ride and driver are always consistent
+    const [updatedRide] = await prisma.$transaction([
+      prisma.ride.update({
+        where: { id: rideId },
+        data: {
+          status: RideStatus.REQUESTED,
+          driverId: null,
+        },
+        include: {
+          passenger: {
+            select: { id: true, name: true, phone: true, email: true },
+          },
+        },
+      }),
+      prisma.driver.update({
+        where: { id: driver.id },
+        data: { isAvailable: true },
+      }),
+    ]);
+
+    return updatedRide;
+  }
 }
 
 export const rideService = new RideService();

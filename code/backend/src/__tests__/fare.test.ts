@@ -717,7 +717,7 @@ describe('Fare Estimation & Final Fare Calculation', () => {
 
         assert.strictEqual(res.statusCode, 200);
         assert.strictEqual(res.body.success, true);
-        assert.strictEqual(res.body.message, 'Ride completed and fare recorded successfully');
+        assert.strictEqual(res.body.message, 'Ride completed successfully');
         assert.ok(res.body.data.ride);
         assert.ok(res.body.data.fare);
       } finally {

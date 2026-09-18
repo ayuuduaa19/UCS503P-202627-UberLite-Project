@@ -11,6 +11,9 @@ import {
   updateDriverLocation,
   updateDriverStatus,
   getDriverRides,
+  acceptRide,
+  rejectRide,
+  startRide,
   completeRide,
 } from '../controllers/driver.controller';
 
@@ -35,7 +38,15 @@ router.patch('/status', updateDriverStatus);
 // Driver rides endpoint
 router.get('/rides', getDriverRides);
 
-// Ride completion with final fare calculation (task #18)
+// Ride acceptance / rejection (Task 14)
+// Only the driver assigned to the ride may call these.
+router.patch('/rides/:id/accept', acceptRide);
+router.patch('/rides/:id/reject', rejectRide);
+
+// Ride status transitions (Task 15) & completion with final fare calculation (Task 18)
+// Only the driver assigned to the ride may call these.
+router.patch('/rides/:id/start', startRide);
+router.patch('/rides/:id/complete', completeRide);
 router.post('/rides/:id/complete', completeRide);
 
 export default router;
