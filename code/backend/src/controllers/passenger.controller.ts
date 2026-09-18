@@ -12,6 +12,9 @@ import {
 } from '../validators/matching.validator';
 import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
+import { feedbackService } from '../services/feedback.service';
+import { createFeedbackSchema, rideHistoryQuerySchema } from '../validators/feedback.validator';
+
 /**
  * Get authenticated passenger profile
  */
@@ -47,12 +50,13 @@ export const getPassengerProfile = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * Get ride history for the authenticated passenger
+ * Get all rides or filtered rides for the authenticated passenger
  */
 export const getPassengerRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
-    const rides = await rideService.getPassengerRides(passengerId);
+    const status = req.query.status as any;
+    const rides = await rideService.getPassengerRides(passengerId, status);
 
     return res.status(200).json({
       success: true,
@@ -64,6 +68,76 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
     next(error);
   }
 };
+
+/**
+ * Get completed ride history for the authenticated passenger (Task #19)
+ */
+export const getPassengerRideHistory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const passengerId = req.user!.id;
+    const parsedQuery = rideHistoryQuerySchema.parse(req.query);
+    const rides = await rideService.getPassengerRideHistory(passengerId, parsedQuery.status);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        rides,
+        count: rides.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Submit post-ride rating and optional feedback for a completed ride (Task #20)
+ */
+export const submitRideFeedback = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const passengerUserId = req.user!.id;
+    const validatedData = createFeedbackSchema.parse(req.body);
+
+    const feedback = await feedbackService.submitRideFeedback(
+      id,
+      passengerUserId,
+      validatedData
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Feedback submitted successfully',
+      data: {
+        feedback,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get feedback for a specific ride
+ */
+export const getRideFeedback = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const requestingUserId = req.user!.id;
+
+    const feedbacks = await feedbackService.getRideFeedback(id, requestingUserId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        feedbacks,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * Request a ride for the authenticated passenger.

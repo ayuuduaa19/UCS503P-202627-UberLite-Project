@@ -4,11 +4,14 @@ import { AppError } from '../middleware/errorHandler';
 import { driverService } from '../services/driver.service';
 import { fareService } from '../services/fare.service';
 import { rideService } from '../services/ride.service';
+import { feedbackService } from '../services/feedback.service';
 import {
   updateLocationSchema,
   updateDriverStatusSchema,
 } from '../validators/driver.validator';
 import { completeRideFareSchema } from '../validators/fare.validator';
+import { rideHistoryQuerySchema } from '../validators/feedback.validator';
+
 
 /**
  * Get authenticated driver profile and vehicle info
@@ -188,34 +191,13 @@ export const updateDriverStatus = async (req: Request, res: Response, next: Next
 };
 
 /**
- * Get rides assigned to the authenticated driver
+ * Get rides assigned to the authenticated driver (supports optional status filtering)
  */
 export const getDriverRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-
-    const driver = await prisma.driver.findUnique({
-      where: { userId },
-    });
-
-    if (!driver) {
-      throw new AppError('Driver profile not found', 404);
-    }
-
-    const rides = await prisma.ride.findMany({
-      where: { driverId: driver.id },
-      include: {
-        passenger: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-          },
-        },
-        fare: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const status = req.query.status as any;
+    const rides = await rideService.getDriverRideHistory(userId, status);
 
     return res.status(200).json({
       success: true,
@@ -227,6 +209,45 @@ export const getDriverRides = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+/**
+ * Get completed ride history for the authenticated driver (Task #19)
+ */
+export const getDriverRideHistory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const parsedQuery = rideHistoryQuerySchema.parse(req.query);
+    const rides = await rideService.getDriverRideHistory(userId, parsedQuery.status);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        rides,
+        count: rides.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get feedbacks received by the authenticated driver
+ */
+export const getDriverFeedbacks = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const result = await feedbackService.getDriverFeedbacks(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * Accept a ride that has been matched to the authenticated driver.
