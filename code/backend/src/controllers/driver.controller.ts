@@ -11,6 +11,7 @@ import {
 } from '../validators/driver.validator';
 import { completeRideFareSchema } from '../validators/fare.validator';
 import { rideHistoryQuerySchema } from '../validators/feedback.validator';
+import { idParamSchema, rideFilterQuerySchema } from '../validators/common.validator';
 
 
 /**
@@ -196,7 +197,7 @@ export const updateDriverStatus = async (req: Request, res: Response, next: Next
 export const getDriverRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const status = req.query.status as any;
+    const { status } = rideFilterQuerySchema.parse(req.query || {});
     const rides = await rideService.getDriverRideHistory(userId, status);
 
     return res.status(200).json({
@@ -216,7 +217,7 @@ export const getDriverRides = async (req: Request, res: Response, next: NextFunc
 export const getDriverRideHistory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const parsedQuery = rideHistoryQuerySchema.parse(req.query);
+    const parsedQuery = rideHistoryQuerySchema.parse(req.query || {});
     const rides = await rideService.getDriverRideHistory(userId, parsedQuery.status);
 
     return res.status(200).json({
@@ -257,7 +258,7 @@ export const getDriverFeedbacks = async (req: Request, res: Response, next: Next
 export const acceptRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const driverUserId = req.user!.id;
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
 
     const updatedRide = await rideService.acceptRide(id, driverUserId);
 
@@ -282,7 +283,7 @@ export const acceptRide = async (req: Request, res: Response, next: NextFunction
 export const rejectRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const driverUserId = req.user!.id;
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
 
     const updatedRide = await rideService.rejectRide(id, driverUserId);
 
@@ -306,7 +307,7 @@ export const rejectRide = async (req: Request, res: Response, next: NextFunction
 export const startRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const driverUserId = req.user!.id;
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
 
     const updatedRide = await rideService.startRide(id, driverUserId);
 
@@ -329,7 +330,7 @@ export const startRide = async (req: Request, res: Response, next: NextFunction)
  */
 export const completeRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
     const driverUserId = req.user!.id;
     const { distanceKm } = req.body && Object.keys(req.body).length > 0
       ? completeRideFareSchema.parse(req.body)

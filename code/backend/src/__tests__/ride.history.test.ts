@@ -173,7 +173,7 @@ describe('Task 19: Ride History API', () => {
         // Locations & Fare
         assert.strictEqual(ride.pickupAddress, 'Connaught Place, New Delhi');
         assert.strictEqual(ride.dropoffAddress, 'Cyber City, Gurugram');
-        assert.strictEqual(ride.fare.totalFare, 372);
+        assert.strictEqual(ride.fare?.totalFare, 372);
         assert.strictEqual(ride.status, RideStatus.COMPLETED);
       } finally {
         prisma.driver.findUnique = originalDriverFindUnique;
