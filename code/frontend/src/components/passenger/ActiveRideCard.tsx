@@ -5,6 +5,7 @@ import type { Ride, RideStatus } from '../../types';
 interface ActiveRideCardProps {
   ride: Ride;
   onRefresh: () => void;
+  onRideUpdated?: (updatedRide: Ride) => void;
   onOpenFeedback: (rideId: string) => void;
 }
 
@@ -19,6 +20,7 @@ const STATUS_STEPS: { status: RideStatus; label: string; icon: string }[] = [
 export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
   ride,
   onRefresh,
+  onRideUpdated,
   onOpenFeedback,
 }) => {
   const [isMatching, setIsMatching] = useState(false);
@@ -35,8 +37,12 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
     setMessage(null);
     try {
       const res = await apiClient.matchRide(ride.id);
-      if (res.success) {
+      if (res.data) {
         setMessage('Driver successfully matched!');
+        onRideUpdated?.(res.data);
+        onRefresh();
+      } else {
+        setMessage('Match triggered — refreshing status...');
         onRefresh();
       }
     } catch (err: any) {
@@ -46,12 +52,15 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
     }
   };
 
+  const isActiveStatus = ['REQUESTED', 'MATCHED', 'ACCEPTED', 'IN_PROGRESS'].includes(ride.status);
+
   return (
     <div className="card active-ride-card">
       <div className="card-header">
         <div className="active-header-left">
           <span className="live-tag">
-            <span className="pulse-circle pulse-green"></span> LIVE RIDE
+            {isActiveStatus && <span className="pulse-circle pulse-green"></span>}
+            {isActiveStatus ? ' LIVE RIDE' : '✓ COMPLETED'}
           </span>
           <span className="ride-id-text text-muted text-xs">ID: {ride.id.slice(0, 8)}...</span>
         </div>
@@ -99,6 +108,21 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
         </div>
       </div>
 
+      {/* Ride Metrics if available */}
+      {(ride.distanceKm || ride.durationMin) && (
+        <div className="ride-metrics-strip">
+          {ride.distanceKm && (
+            <span className="metric-chip">📏 {ride.distanceKm.toFixed(1)} km</span>
+          )}
+          {ride.durationMin && (
+            <span className="metric-chip">⏱ ~{Math.round(ride.durationMin)} mins</span>
+          )}
+          {ride.fare && (
+            <span className="metric-chip fare-chip">₹{ride.fare.totalFare.toFixed(0)} est.</span>
+          )}
+        </div>
+      )}
+
       {/* Driver Info Card if assigned */}
       {ride.driver ? (
         <div className="driver-assigned-card">
@@ -114,7 +138,16 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
               <span>{ride.driver.vehicleModel} ({ride.driver.vehicleType})</span>
               <span>•</span>
               <span className="plate-badge">{ride.driver.vehiclePlate}</span>
+              {ride.driver.vehicleColor && (
+                <>
+                  <span>•</span>
+                  <span>{ride.driver.vehicleColor}</span>
+                </>
+              )}
             </div>
+            {ride.driver.user?.phone && (
+              <div className="driver-contact text-xs text-muted">📞 {ride.driver.user.phone}</div>
+            )}
           </div>
         </div>
       ) : (

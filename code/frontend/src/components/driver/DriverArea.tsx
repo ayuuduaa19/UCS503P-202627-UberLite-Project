@@ -1,42 +1,142 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { DriverStatusCard } from './DriverStatusCard';
 import { IncomingDispatchCard } from './IncomingDispatchCard';
 import { ActiveTripCard } from './ActiveTripCard';
 import { DriverRideHistory } from './DriverRideHistory';
+import { DriverFeedbacksPanel } from './DriverFeedbacksPanel';
 import { useRouter } from '../../context/RouterContext';
+import { useAuth } from '../../context/AuthContext';
+import { apiClient } from '../../api/client';
 import type { Ride } from '../../types';
 
 interface DriverAreaProps {
   onOpenAuth: () => void;
 }
 
-const SAMPLE_INCOMING_RIDE: Ride = {
-  id: 'dispatch-demo-ride-123',
-  passengerId: 'demo-passenger-uuid',
-  pickupAddress: 'Connaught Place, New Delhi',
-  pickupLat: 28.6315,
-  pickupLng: 77.2167,
-  dropoffAddress: 'DLF Cyber City, Gurugram',
-  dropoffLat: 28.4952,
-  dropoffLng: 77.0895,
-  distanceKm: 20.0,
-  durationMin: 35.0,
-  status: 'MATCHED',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  passenger: {
-    id: 'demo-passenger-uuid',
-    name: 'Alice Passenger',
-    phone: '+91 9876543210',
-    email: 'alice@uberlite.local',
-  },
-};
+const DISPATCH_POLL_MS = 7000;   // poll for new incoming rides every 7s
+const TRIP_POLL_MS = 8000;       // poll active trip status every 8s
 
 export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
   const { activeTab } = useRouter();
-  const [incomingRide, setIncomingRide] = useState<Ride | null>(SAMPLE_INCOMING_RIDE);
-  const [activeTrip, setActiveTrip] = useState<Ride | null>(null);
+  const { isAuthenticated } = useAuth();
 
+  const [incomingRide, setIncomingRide] = useState<Ride | null>(null);
+  const [activeTrip, setActiveTrip] = useState<Ride | null>(null);
+  const [isPolling, setIsPolling] = useState<boolean>(false);
+
+  const dispatchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tripPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ─── Fetch incoming dispatch (MATCHED rides assigned to this driver) ───────
+  const fetchIncomingDispatch = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await apiClient.getDriverRides('MATCHED');
+      if (res.data && res.data.length > 0) {
+        // Only show if not currently in an active trip
+        if (!activeTrip) {
+          setIncomingRide(res.data[0]);
+        }
+      } else {
+        // Clear incoming if no longer pending
+        setIncomingRide((prev) => {
+          // Keep previous if it's a local simulation
+          if (prev?.id?.startsWith('dispatch-demo')) return prev;
+          return null;
+        });
+      }
+    } catch {
+      // silently ignore network errors during polling
+    }
+  }, [isAuthenticated, activeTrip]);
+
+  // ─── Fetch active trip (ACCEPTED / IN_PROGRESS) ───────────────────────────
+  const fetchActiveTrip = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const [acceptedRes, inProgressRes] = await Promise.allSettled([
+        apiClient.getDriverRides('ACCEPTED'),
+        apiClient.getDriverRides('IN_PROGRESS'),
+      ]);
+
+      let foundTrip: Ride | null = null;
+      if (acceptedRes.status === 'fulfilled' && acceptedRes.value.data?.length) {
+        foundTrip = acceptedRes.value.data[0];
+      } else if (inProgressRes.status === 'fulfilled' && inProgressRes.value.data?.length) {
+        foundTrip = inProgressRes.value.data[0];
+      }
+
+      if (foundTrip) {
+        setActiveTrip(foundTrip);
+        setIncomingRide(null);
+      }
+    } catch {
+      // silently ignore
+    }
+  }, [isAuthenticated]);
+
+  // ─── Resume in-flight state on mount ─────────────────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    // Load current state from API on initial mount
+    fetchActiveTrip();
+    fetchIncomingDispatch();
+  }, [isAuthenticated]);
+
+  // ─── Start dispatch polling when no active trip ───────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    if (!activeTrip) {
+      dispatchPollRef.current = setInterval(fetchIncomingDispatch, DISPATCH_POLL_MS);
+      setIsPolling(true);
+    } else {
+      // Clear dispatch polling when actively on a trip
+      if (dispatchPollRef.current) {
+        clearInterval(dispatchPollRef.current);
+        dispatchPollRef.current = null;
+      }
+      setIsPolling(false);
+    }
+
+    return () => {
+      if (dispatchPollRef.current) {
+        clearInterval(dispatchPollRef.current);
+        dispatchPollRef.current = null;
+      }
+    };
+  }, [isAuthenticated, activeTrip, fetchIncomingDispatch]);
+
+  // ─── Poll active trip status ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated || !activeTrip) {
+      if (tripPollRef.current) {
+        clearInterval(tripPollRef.current);
+        tripPollRef.current = null;
+      }
+      return;
+    }
+
+    if (activeTrip.status === 'ACCEPTED' || activeTrip.status === 'IN_PROGRESS') {
+      tripPollRef.current = setInterval(async () => {
+        try {
+          const res = await apiClient.getDriverRides(activeTrip.status);
+          if (res.data && res.data.length > 0) {
+            setActiveTrip(res.data[0]);
+          }
+        } catch { /* ignore */ }
+      }, TRIP_POLL_MS);
+    }
+
+    return () => {
+      if (tripPollRef.current) {
+        clearInterval(tripPollRef.current);
+        tripPollRef.current = null;
+      }
+    };
+  }, [isAuthenticated, activeTrip?.id, activeTrip?.status]);
+
+  // ─── Handlers ────────────────────────────────────────────────────────────
   const handleRideAccepted = (acceptedRide: Ride) => {
     setIncomingRide(null);
     setActiveTrip({ ...acceptedRide, status: 'ACCEPTED' });
@@ -48,6 +148,8 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
   const handleTripCompleted = () => {
     setActiveTrip(null);
+    // Resume dispatch polling after trip completes
+    fetchIncomingDispatch();
   };
 
   return (
@@ -55,6 +157,14 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
       {activeTab === 'status' && (
         <div className="driver-grid">
           <DriverStatusCard />
+
+          {/* Polling indicator */}
+          {isPolling && isAuthenticated && (
+            <div className="polling-indicator text-xs text-muted">
+              <span className="pulse-circle pulse-green"></span>
+              Listening for incoming ride dispatches...
+            </div>
+          )}
 
           {incomingRide && !activeTrip && (
             <IncomingDispatchCard
@@ -92,13 +202,16 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
             <div className="card text-center empty-pad">
               <span className="empty-icon">🚗</span>
               <h3>No Active Trip</h3>
-              <p className="text-muted">You are currently waiting for incoming dispatches.</p>
-              <button
-                className="btn btn-sm btn-outline mt-3"
-                onClick={() => setIncomingRide(SAMPLE_INCOMING_RIDE)}
-              >
-                Simulate Incoming Dispatch
-              </button>
+              <p className="text-muted">
+                {isAuthenticated
+                  ? 'You are currently waiting for incoming dispatches.'
+                  : 'Sign in as a driver to receive ride requests.'}
+              </p>
+              {!isAuthenticated && (
+                <button className="btn btn-sm btn-primary mt-3" onClick={onOpenAuth}>
+                  Sign In as Driver
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -106,33 +219,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
       {activeTab === 'history' && <DriverRideHistory onOpenAuth={onOpenAuth} />}
 
-      {activeTab === 'feedbacks' && (
-        <div className="card feedbacks-card">
-          <h2>Driver Ratings & Reviews</h2>
-          <p className="text-muted">Passenger ratings and feedback for your completed trips</p>
-          <div className="driver-rating-banner">
-            <div className="big-rating-number">4.9</div>
-            <div className="rating-stars-row">★★★★★</div>
-            <span className="text-xs text-muted">Based on 148 verified passenger trips</span>
-          </div>
-          <div className="review-items-list">
-            <div className="review-item">
-              <div className="review-header">
-                <span className="review-user">Alice P.</span>
-                <span className="rating-pill">★ 5.0</span>
-              </div>
-              <p className="review-text">"Very polite driver, on time and clean car!"</p>
-            </div>
-            <div className="review-item">
-              <div className="review-header">
-                <span className="review-user">Rohan M.</span>
-                <span className="rating-pill">★ 5.0</span>
-              </div>
-              <p className="review-text">"Smooth drive during peak traffic, thank you."</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'feedbacks' && <DriverFeedbacksPanel onOpenAuth={onOpenAuth} />}
     </div>
   );
 };

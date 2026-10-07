@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { apiClient } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import type { DriverProfile } from '../../types';
 
 const GPS_CHECKPOINTS = [
   { name: 'Connaught Place, Central Delhi', lat: 28.6315, lng: 77.2167 },
@@ -10,24 +11,55 @@ const GPS_CHECKPOINTS = [
 ];
 
 export const DriverStatusCard: React.FC = () => {
-  const { driver, updateDriverProfile } = useAuth();
-  const [isAvailable, setIsAvailable] = useState<boolean>(driver?.isAvailable ?? true);
-  const [currentLat, setCurrentLat] = useState<number>(driver?.currentLat ?? 28.6315);
-  const [currentLng, setCurrentLng] = useState<number>(driver?.currentLng ?? 77.2167);
+  const { driver: ctxDriver, isAuthenticated, updateDriverProfile } = useAuth();
+  const [profile, setProfile] = useState<DriverProfile | null>(ctxDriver);
+  const [isAvailable, setIsAvailable] = useState<boolean>(ctxDriver?.isAvailable ?? true);
+  const [currentLat, setCurrentLat] = useState<number>(ctxDriver?.currentLat ?? 28.6315);
+  const [currentLng, setCurrentLng] = useState<number>(ctxDriver?.currentLng ?? 77.2167);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Load fresh profile from API if authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    apiClient
+      .getDriverProfile()
+      .then((res) => {
+        if (res.data) {
+          const { user: _user, ...driverFields } = res.data;
+          setProfile(driverFields as DriverProfile);
+          setIsAvailable(driverFields.isAvailable);
+          if (driverFields.currentLat) setCurrentLat(driverFields.currentLat);
+          if (driverFields.currentLng) setCurrentLng(driverFields.currentLng);
+        }
+      })
+      .catch(() => {
+        // Use context data as fallback
+        if (ctxDriver) {
+          setProfile(ctxDriver);
+          setIsAvailable(ctxDriver.isAvailable);
+        }
+      });
+  }, [isAuthenticated]);
+
+  const displayProfile = profile ?? ctxDriver;
 
   const handleToggleAvailability = async () => {
     const nextState = !isAvailable;
     setIsUpdating(true);
     setStatusMessage(null);
     try {
-      await apiClient.updateDriverAvailability(nextState);
+      const res = await apiClient.updateDriverAvailability(nextState);
       setIsAvailable(nextState);
+      if (res.data) {
+        setProfile((prev) => (prev ? { ...prev, isAvailable: nextState } : null));
+      }
       updateDriverProfile({ isAvailable: nextState });
-      setStatusMessage(`Driver status is now ${nextState ? 'ONLINE (Accepting Rides)' : 'OFFLINE'}`);
+      setStatusMessage(
+        `Driver status is now ${nextState ? 'ONLINE (Accepting Rides)' : 'OFFLINE'}`,
+      );
     } catch {
-      // If unauthorized or local simulation, update state locally
+      // Optimistic local update on failure
       setIsAvailable(nextState);
       updateDriverProfile({ isAvailable: nextState });
       setStatusMessage(`Status toggled to ${nextState ? 'ONLINE' : 'OFFLINE'}`);
@@ -42,7 +74,10 @@ export const DriverStatusCard: React.FC = () => {
     setIsUpdating(true);
     setStatusMessage(null);
     try {
-      await apiClient.updateDriverLocation(lat, lng);
+      const res = await apiClient.updateDriverLocation(lat, lng);
+      if (res.data) {
+        setProfile((prev) => (prev ? { ...prev, currentLat: lat, currentLng: lng } : null));
+      }
       updateDriverProfile({ currentLat: lat, currentLng: lng });
       setStatusMessage(`GPS location updated to Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
     } catch {
@@ -57,7 +92,7 @@ export const DriverStatusCard: React.FC = () => {
     <div className="card driver-status-card">
       <div className="card-header">
         <div>
-          <h2>Driver Availability & Telemetry</h2>
+          <h2>Driver Availability &amp; Telemetry</h2>
           <p className="text-muted">Manage dispatch status and real-time vehicle GPS coordinates</p>
         </div>
         <div className="status-toggle-box">
@@ -85,14 +120,35 @@ export const DriverStatusCard: React.FC = () => {
         <div className="telemetry-item">
           <span className="telemetry-label">Vehicle Registration</span>
           <span className="telemetry-val font-semibold">
-            {driver?.vehiclePlate || 'DL-01-AB-1234'} ({driver?.vehicleType || 'STANDARD'})
+            {displayProfile?.vehiclePlate || 'DL-01-AB-1234'} ({displayProfile?.vehicleType || 'STANDARD'})
           </span>
         </div>
 
         <div className="telemetry-item">
           <span className="telemetry-label">Driver Rating</span>
           <span className="telemetry-val text-warning">
-            ★ {driver?.rating ? driver.rating.toFixed(1) : '5.0'} / 5.0
+            ★ {displayProfile?.rating ? displayProfile.rating.toFixed(1) : '5.0'} / 5.0
+          </span>
+        </div>
+
+        {displayProfile?.vehicleModel && (
+          <div className="telemetry-item">
+            <span className="telemetry-label">Vehicle Model</span>
+            <span className="telemetry-val">{displayProfile.vehicleModel}</span>
+          </div>
+        )}
+
+        {displayProfile?.vehicleColor && (
+          <div className="telemetry-item">
+            <span className="telemetry-label">Vehicle Colour</span>
+            <span className="telemetry-val">{displayProfile.vehicleColor}</span>
+          </div>
+        )}
+
+        <div className="telemetry-item">
+          <span className="telemetry-label">Current GPS</span>
+          <span className="telemetry-val text-xs">
+            {currentLat.toFixed(4)}, {currentLng.toFixed(4)}
           </span>
         </div>
       </div>
