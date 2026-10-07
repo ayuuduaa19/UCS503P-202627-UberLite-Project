@@ -41,11 +41,16 @@ export class RideService {
   }
 
   /**
-   * Get all rides for a specific passenger
+   * Get all rides for a specific passenger (supports optional status filtering)
    */
-  async getPassengerRides(passengerId: string) {
+  async getPassengerRides(passengerId: string, status?: RideStatus) {
+    const where: any = { passengerId };
+    if (status) {
+      where.status = status;
+    }
+
     const rides = await prisma.ride.findMany({
-      where: { passengerId },
+      where,
       include: {
         driver: {
           select: {
@@ -53,16 +58,81 @@ export class RideService {
             vehicleType: true,
             vehicleModel: true,
             vehiclePlate: true,
+            vehicleColor: true,
             rating: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
           },
         },
         fare: true,
+        feedbacks: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return rides;
   }
+
+  /**
+   * Get completed ride history for a specific passenger
+   */
+  async getPassengerRideHistory(passengerId: string, status: RideStatus = RideStatus.COMPLETED) {
+    return this.getPassengerRides(passengerId, status);
+  }
+
+  /**
+   * Get completed ride history for a specific driver
+   */
+  async getDriverRideHistory(driverUserId: string, status: RideStatus = RideStatus.COMPLETED) {
+    const driver = await prisma.driver.findUnique({
+      where: { userId: driverUserId },
+    });
+
+    if (!driver) {
+      throw new AppError('Driver profile not found', 404);
+    }
+
+    const where: any = { driverId: driver.id };
+    if (status) {
+      where.status = status;
+    }
+
+    const rides = await prisma.ride.findMany({
+      where,
+      include: {
+        passenger: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            vehicleType: true,
+            vehicleModel: true,
+            vehiclePlate: true,
+            vehicleColor: true,
+            rating: true,
+          },
+        },
+        fare: true,
+        feedbacks: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return rides;
+  }
+
 
   /**
    * Get a ride by its ID with all related details

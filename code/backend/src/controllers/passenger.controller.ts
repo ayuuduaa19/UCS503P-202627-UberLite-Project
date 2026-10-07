@@ -12,6 +12,10 @@ import {
 } from '../validators/matching.validator';
 import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
+import { feedbackService } from '../services/feedback.service';
+import { createFeedbackSchema, rideHistoryQuerySchema } from '../validators/feedback.validator';
+import { idParamSchema, rideFilterQuerySchema } from '../validators/common.validator';
+
 /**
  * Get authenticated passenger profile
  */
@@ -47,12 +51,13 @@ export const getPassengerProfile = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * Get ride history for the authenticated passenger
+ * Get all rides or filtered rides for the authenticated passenger
  */
 export const getPassengerRides = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
-    const rides = await rideService.getPassengerRides(passengerId);
+    const { status } = rideFilterQuerySchema.parse(req.query || {});
+    const rides = await rideService.getPassengerRides(passengerId, status);
 
     return res.status(200).json({
       success: true,
@@ -64,6 +69,76 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
     next(error);
   }
 };
+
+/**
+ * Get completed ride history for the authenticated passenger (Task #19)
+ */
+export const getPassengerRideHistory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const passengerId = req.user!.id;
+    const parsedQuery = rideHistoryQuerySchema.parse(req.query || {});
+    const rides = await rideService.getPassengerRideHistory(passengerId, parsedQuery.status);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        rides,
+        count: rides.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Submit post-ride rating and optional feedback for a completed ride (Task #20)
+ */
+export const submitRideFeedback = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const passengerUserId = req.user!.id;
+    const validatedData = createFeedbackSchema.parse(req.body);
+
+    const feedback = await feedbackService.submitRideFeedback(
+      id,
+      passengerUserId,
+      validatedData
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Feedback submitted successfully',
+      data: {
+        feedback,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get feedback for a specific ride
+ */
+export const getRideFeedback = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const requestingUserId = req.user!.id;
+
+    const feedbacks = await feedbackService.getRideFeedback(id, requestingUserId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        feedbacks,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * Request a ride for the authenticated passenger.
@@ -132,7 +207,7 @@ export const requestRide = async (req: Request, res: Response, next: NextFunctio
  */
 export const getRideDetails = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
     const ride = await rideService.getRideById(id);
 
     return res.status(200).json({
@@ -151,7 +226,7 @@ export const getRideDetails = async (req: Request, res: Response, next: NextFunc
  */
 export const matchRideWithDriver = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
     const passengerId = req.user!.id;
     const options = matchingOptionsSchema.parse(req.body || {});
 
@@ -172,7 +247,7 @@ export const matchRideWithDriver = async (req: Request, res: Response, next: Nex
  */
 export const assignRideDriver = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
     const passengerId = req.user!.id;
     const { driverId } = assignDriverSchema.parse(req.body);
 
@@ -220,7 +295,7 @@ export const getNearbyDrivers = async (req: Request, res: Response, next: NextFu
  */
 export const estimateRideFare = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const { id } = idParamSchema.parse(req.params);
     const fareEstimate = await fareService.estimateFareForRide(id);
 
     return res.status(200).json({

@@ -1,113 +1,168 @@
-import {
-  useCallback,
-  useState,
-  type ReactNode,
-} from 'react';
-import type { LoginCredentials, RegisterData, Role, User } from '../types/auth';
-import {
-  clearAuthSession,
-  getStoredSession,
-  loginUser,
-  registerUser,
-  saveAuthSession,
-} from '../utils/auth';
-import { AuthContext, type AuthContextType } from './authContextDef';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiClient } from '../api/client';
+import type { DriverProfile, Role, User, VehicleType } from '../types';
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<{ user: User | null; token: string | null }>(() => {
-    try {
-      const stored = getStoredSession();
-      if (stored) {
-        return { user: stored.user, token: stored.token };
-      }
-    } catch (err) {
-      console.error('Error restoring session from localStorage:', err);
-      clearAuthSession();
+interface AuthContextType {
+  user: User | null;
+  driver: DriverProfile | null;
+  token: string | null;
+  role: Role | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (payload: {
+    email: string;
+    password: string;
+    name: string;
+    phone?: string;
+    role: 'PASSENGER' | 'DRIVER';
+    licenseNumber?: string;
+    vehicleType?: VehicleType;
+    vehicleModel?: string;
+    vehiclePlate?: string;
+    vehicleColor?: string;
+  }) => Promise<void>;
+  logout: () => void;
+  setDemoUser: (role: 'PASSENGER' | 'DRIVER') => void;
+  updateDriverProfile: (partial: Partial<DriverProfile>) => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [driver, setDriver] = useState<DriverProfile | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const storedToken = apiClient.getToken();
+    const stored = apiClient.getStoredUser();
+
+    if (storedToken && stored) {
+      setToken(storedToken);
+      setUser(stored.user);
+      setDriver(stored.driver || null);
     }
-    return { user: null, token: null };
-  });
-
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const user = session.user;
-  const token = session.token;
-
-  const clearError = useCallback(() => {
-    setError(null);
+    setIsLoading(false);
   }, []);
 
-  const login = useCallback(async (credentials: LoginCredentials): Promise<User> => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
-    setError(null);
     try {
-      const result = await loginUser(credentials);
-      saveAuthSession(result.token, result.user);
-      setSession({ user: result.user, token: result.token });
-      return result.user;
-    } catch (err: any) {
-      const msg = err.message || 'Login failed';
-      setError(msg);
-      throw err;
+      const res = await apiClient.login(email, password);
+      if (res.data) {
+        setUser(res.data.user);
+        setDriver(res.data.driver || null);
+        setToken(res.data.token);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  const register = useCallback(
-    async (data: RegisterData, autoLogin: boolean = true): Promise<User | void> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const { user: registeredUser } = await registerUser(data);
-
-        if (autoLogin) {
-          const loginResult = await loginUser({
-            email: data.email,
-            password: data.password,
-          });
-          saveAuthSession(loginResult.token, loginResult.user);
-          setSession({ user: loginResult.user, token: loginResult.token });
-          return loginResult.user;
-        }
-
-        return registeredUser;
-      } catch (err: any) {
-        const msg = err.message || 'Registration failed';
-        setError(msg);
-        throw err;
-      } finally {
-        setIsLoading(false);
+  const register = async (payload: {
+    email: string;
+    password: string;
+    name: string;
+    phone?: string;
+    role: 'PASSENGER' | 'DRIVER';
+    licenseNumber?: string;
+    vehicleType?: VehicleType;
+    vehicleModel?: string;
+    vehiclePlate?: string;
+    vehicleColor?: string;
+  }) => {
+    setIsLoading(true);
+    try {
+      const res = await apiClient.register(payload);
+      if (res.data) {
+        setUser(res.data.user);
+        setDriver(res.data.driver || null);
+        setToken(res.data.token);
       }
-    },
-    []
-  );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const logout = useCallback(() => {
-    clearAuthSession();
-    setSession({ user: null, token: null });
-    setError(null);
-  }, []);
+  const logout = () => {
+    apiClient.removeToken();
+    setUser(null);
+    setDriver(null);
+    setToken(null);
+  };
 
-  const hasRole = useCallback(
-    (role: Role): boolean => {
-      return !!user && user.role === role;
-    },
-    [user]
-  );
+  const setDemoUser = (roleType: 'PASSENGER' | 'DRIVER') => {
+    if (roleType === 'PASSENGER') {
+      const demoPassenger: User = {
+        id: 'demo-passenger-uuid',
+        name: 'Alice Passenger',
+        email: 'alice@uberlite.local',
+        phone: '+91 9876543210',
+        role: 'PASSENGER',
+      };
+      const demoToken = 'demo-jwt-passenger-token';
+      apiClient.setToken(demoToken);
+      apiClient.setStoredUser(demoPassenger, null);
+      setUser(demoPassenger);
+      setDriver(null);
+      setToken(demoToken);
+    } else {
+      const demoDriverUser: User = {
+        id: 'demo-driver-user-uuid',
+        name: 'Bob Driver',
+        email: 'bob@uberlite.local',
+        phone: '+91 9123456780',
+        role: 'DRIVER',
+      };
+      const demoDriverProfile: DriverProfile = {
+        id: 'demo-driver-uuid',
+        userId: demoDriverUser.id,
+        licenseNumber: 'DL-IND-2026-7890',
+        vehicleType: 'STANDARD',
+        vehicleModel: 'Hyundai Aura',
+        vehiclePlate: 'DL-01-AB-1234',
+        vehicleColor: 'Silver Metallic',
+        isAvailable: true,
+        currentLat: 28.6139,
+        currentLng: 77.209,
+        rating: 4.9,
+      };
+      const demoToken = 'demo-jwt-driver-token';
+      apiClient.setToken(demoToken);
+      apiClient.setStoredUser(demoDriverUser, demoDriverProfile);
+      setUser(demoDriverUser);
+      setDriver(demoDriverProfile);
+      setToken(demoToken);
+    }
+  };
+
+  const updateDriverProfile = (partial: Partial<DriverProfile>) => {
+    setDriver((prev) => (prev ? { ...prev, ...partial } : null));
+  };
 
   const value: AuthContextType = {
     user,
+    driver,
     token,
-    isAuthenticated: Boolean(token && user),
+    role: user?.role || null,
+    isAuthenticated: !!user && !!token,
     isLoading,
-    error,
     login,
     register,
     logout,
-    clearError,
-    hasRole,
+    setDemoUser,
+    updateDriverProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
