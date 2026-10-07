@@ -10,8 +10,7 @@ interface DriverRideHistoryProps {
 export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth }) => {
   const { isAuthenticated } = useAuth();
   const [rides, setRides] = useState<Ride[]>([]);
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -22,20 +21,10 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const [ridesRes, feedbacksRes] = await Promise.allSettled([
-        apiClient.getDriverRideHistory(),
-        apiClient.getDriverFeedbacks(),
-      ]);
-
-      if (ridesRes.status === 'fulfilled') {
-        // Backend returns { data: { rides, count } } or { data: <rides[]> }
-        const ridesData: Ride[] = (ridesRes.value.data as any)?.rides ?? (Array.isArray(ridesRes.value.data) ? ridesRes.value.data : []);
-        setRides(ridesData);
-      }
-      if (feedbacksRes.status === 'fulfilled') {
-        const fbData: any[] = (feedbacksRes.value.data as any)?.feedbacks ?? (Array.isArray(feedbacksRes.value.data) ? feedbacksRes.value.data : []);
-        setFeedbacks(fbData);
-      }
+      const res = await apiClient.getDriverRideHistory();
+      // Backend returns { data: { rides, count } } or { data: <rides[]> }
+      const ridesData: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
+      setRides(ridesData);
     } catch (err: any) {
       if (err.statusCode === 401) {
         onOpenAuth();
@@ -74,14 +63,22 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
   }
 
 
-  const totalEarnings = rides.reduce((sum, r) => sum + (r.fare?.totalFare || 0), 0);
+  const totalEarnings = rides.reduce((sum, r) => sum + (r.fare?.totalFare ?? 0), 0);
+  const totalDistance = rides.reduce((sum, r) => sum + (r.distanceKm ?? 0), 0);
+  const avgRating =
+    rides.length > 0
+      ? rides
+          .filter((r) => r.feedbacks && r.feedbacks.length > 0)
+          .flatMap((r) => r.feedbacks!)
+          .reduce((acc, fb, _i, arr) => acc + fb.rating / arr.length, 0)
+      : null;
 
   return (
     <div className="card driver-history-card">
       <div className="card-header">
         <div>
-          <h2>Driver Completed Trips & Earnings</h2>
-          <p className="text-muted">Review fulfilled trips, payouts, and customer reviews</p>
+          <h2>Driver Trip History &amp; Earnings</h2>
+          <p className="text-muted">Review your completed trips, payouts, and passenger reviews</p>
         </div>
         <button className="btn btn-sm btn-outline" onClick={fetchData} disabled={isLoading}>
           🔄 Refresh
@@ -90,6 +87,7 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
 
       {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
 
+      {/* Summary Banner */}
       <div className="driver-earnings-overview">
         <div className="earnings-metric">
           <span className="text-xs text-muted">Completed Trips</span>
@@ -97,12 +95,18 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
         </div>
         <div className="earnings-metric">
           <span className="text-xs text-muted">Gross Earnings</span>
-          <span className="earnings-val text-success">₹{totalEarnings || (rides.length ? rides.length * 270 : 0)}</span>
+          <span className="earnings-val text-success">₹{totalEarnings.toFixed(0)}</span>
         </div>
         <div className="earnings-metric">
-          <span className="text-xs text-muted">Feedbacks Received</span>
-          <span className="earnings-val">{feedbacks.length}</span>
+          <span className="text-xs text-muted">Total Distance</span>
+          <span className="earnings-val">{totalDistance.toFixed(1)} km</span>
         </div>
+        {avgRating !== null && (
+          <div className="earnings-metric">
+            <span className="text-xs text-muted">Avg. Rating</span>
+            <span className="earnings-val text-warning">★ {avgRating.toFixed(1)}</span>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -117,37 +121,103 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
         </div>
       ) : (
         <div className="history-list">
-          {rides.map((ride) => (
-            <div key={ride.id} className="history-item-card">
-              <div className="history-item-top">
-                <span className="status-pill status-completed">COMPLETED</span>
-                <span className="history-date text-xs text-muted">
-                  {new Date(ride.createdAt).toLocaleDateString()}
-                </span>
-              </div>
+          {rides.map((ride) => {
+            const fare = ride.fare;
+            const feedbacks = ride.feedbacks ?? [];
+            const passengerRating = feedbacks[0];
+            return (
+              <div key={ride.id} className="history-item-card history-item-driver">
+                <div className="history-item-top">
+                  <span className="status-pill status-completed">COMPLETED</span>
+                  <span className="history-date text-xs text-muted">
+                    {new Date(ride.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}{' '}
+                    at{' '}
+                    {new Date(ride.createdAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
 
-              <div className="history-routes">
-                <div className="history-route-row">
-                  <span className="route-pin">🟢</span>
-                  <span className="route-text">{ride.pickupAddress}</span>
+                {/* Route */}
+                <div className="history-routes">
+                  <div className="history-route-row">
+                    <span className="route-pin">🟢</span>
+                    <span className="route-text">{ride.pickupAddress}</span>
+                  </div>
+                  <div className="history-route-row">
+                    <span className="route-pin">🔴</span>
+                    <span className="route-text">{ride.dropoffAddress}</span>
+                  </div>
                 </div>
-                <div className="history-route-row">
-                  <span className="route-pin">🔴</span>
-                  <span className="route-text">{ride.dropoffAddress}</span>
-                </div>
-              </div>
 
-              <div className="history-item-bottom">
-                <div className="history-fare-info">
-                  <span className="text-xs text-muted">Trip Fare:</span>
-                  <span className="fare-tag font-semibold text-success">₹{ride.fare?.totalFare || 270}</span>
+                {/* Metrics Row */}
+                <div className="history-metrics-strip">
+                  {ride.distanceKm != null && (
+                    <span className="metric-chip">📏 {ride.distanceKm.toFixed(1)} km</span>
+                  )}
+                  {ride.durationMin != null && (
+                    <span className="metric-chip">⏱ ~{Math.round(ride.durationMin)} min</span>
+                  )}
+                  <span className="metric-chip">
+                    {ride.driver?.vehicleType ?? 'STANDARD'}
+                  </span>
                 </div>
-                <div className="passenger-badge text-xs text-muted">
-                  Passenger: {ride.passenger?.name || 'Alice'}
+
+                <div className="history-item-bottom">
+                  {/* Fare Breakdown */}
+                  <div className="history-fare-block">
+                    <div className="history-fare-info">
+                      <span className="text-xs text-muted">Trip Earnings:</span>
+                      <span className="fare-tag font-semibold text-success">
+                        ₹{fare?.totalFare != null ? fare.totalFare.toFixed(0) : '—'}
+                      </span>
+                    </div>
+                    {fare && (
+                      <div className="fare-breakdown-strip">
+                        <span className="fare-chip-sm">Base ₹{fare.baseFare?.toFixed(0)}</span>
+                        <span className="fare-chip-sm">+ Dist ₹{fare.distanceFare?.toFixed(0)}</span>
+                        {fare.surgeMultiplier > 1 && (
+                          <span className="fare-chip-sm surge-chip">
+                            × {fare.surgeMultiplier.toFixed(1)} surge
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Passenger Info */}
+                  <div className="history-passenger-row">
+                    <span className="text-xs text-muted">Passenger:</span>
+                    <span className="font-semibold text-xs">{ride.passenger?.name ?? 'N/A'}</span>
+                  </div>
+
+                  {/* Passenger Rating for this ride */}
+                  {passengerRating && (
+                    <div className="history-feedback-badge">
+                      <span className="review-stars-sm">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <span
+                            key={s}
+                            style={{ color: s <= passengerRating.rating ? '#f59e0b' : '#4b5563' }}
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </span>
+                      {passengerRating.comment && (
+                        <span className="text-xs text-muted">"{passengerRating.comment}"</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

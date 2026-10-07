@@ -3,6 +3,7 @@ import { DriverStatusCard } from './DriverStatusCard';
 import { IncomingDispatchCard } from './IncomingDispatchCard';
 import { ActiveTripCard } from './ActiveTripCard';
 import { DriverRideHistory } from './DriverRideHistory';
+import { DriverFeedbacksPanel } from './DriverFeedbacksPanel';
 import { useRouter } from '../../context/RouterContext';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
@@ -12,7 +13,7 @@ interface DriverAreaProps {
   onOpenAuth: () => void;
 }
 
-const POLL_INTERVAL_MS = 4000;
+const POLL_INTERVAL_MS = 5000;
 
 export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
   const { activeTab } = useRouter();
@@ -20,6 +21,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
   const [incomingRide, setIncomingRide] = useState<Ride | null>(null);
   const [activeTrip, setActiveTrip] = useState<Ride | null>(null);
   const [isPollError, setIsPollError] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /**
@@ -30,7 +32,6 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
   const pollDriverRides = async () => {
     if (!isAuthenticated) return;
     try {
-      // Fetch all non-completed rides assigned to this driver
       const res = await apiClient.getDriverRides();
       const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
       setIsPollError(false);
@@ -40,11 +41,9 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
       setIncomingRide(matched ?? null);
 
-      // Only restore activeTrip if we don't already have one tracked locally
-      // to avoid overwriting local optimistic updates
+      // Restore or keep activeTrip up to date
       setActiveTrip((prev) => {
         if (prev && (prev.status === 'ACCEPTED' || prev.status === 'IN_PROGRESS')) {
-          // Keep the most up-to-date version from the server
           return inProgress ?? prev;
         }
         return inProgress ?? null;
@@ -59,10 +58,12 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    setIsPolling(false);
   };
 
   const startPolling = () => {
     stopPolling();
+    setIsPolling(true);
     pollRef.current = setInterval(pollDriverRides, POLL_INTERVAL_MS);
   };
 
@@ -103,6 +104,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
   const handleTripCompleted = () => {
     setActiveTrip(null);
+    pollDriverRides();
   };
 
   return (
@@ -111,12 +113,17 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
         <div className="driver-grid">
           <DriverStatusCard />
 
-          {/* Poll error banner */}
-          {isPollError && isAuthenticated && (
+          {/* Polling / Error status banner */}
+          {isPollError && isAuthenticated ? (
             <div className="alert alert-error" style={{ margin: '0.5rem 0' }}>
               ⚠️ Could not reach server to check for incoming dispatches. Retrying...
             </div>
-          )}
+          ) : isPolling && isAuthenticated && !incomingRide && !activeTrip ? (
+            <div className="polling-indicator text-xs text-muted" style={{ margin: '0.5rem 0' }}>
+              <span className="pulse-circle pulse-green"></span>
+              Listening for incoming ride dispatches...
+            </div>
+          ) : null}
 
           {incomingRide && !activeTrip && (
             <IncomingDispatchCard
@@ -144,7 +151,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
               <h3>Sign In Required</h3>
               <p className="text-muted">Please sign in to manage your trips.</p>
               <button className="btn btn-primary mt-3" onClick={onOpenAuth}>
-                Sign In
+                Sign In as Driver
               </button>
             </div>
           ) : activeTrip ? (
@@ -175,88 +182,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
       {activeTab === 'history' && <DriverRideHistory onOpenAuth={onOpenAuth} />}
 
-      {activeTab === 'feedbacks' && <DriverFeedbacksView />}
-    </div>
-  );
-};
-
-/** Extracted driver feedbacks view with real API loading state */
-const DriverFeedbacksView: React.FC = () => {
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      setErrorMessage(null);
-      try {
-        const res = await apiClient.getDriverFeedbacks();
-        const data: any[] = (res.data as any)?.feedbacks ?? (Array.isArray(res.data) ? res.data : []);
-        setFeedbacks(data);
-      } catch (err: any) {
-        setErrorMessage(err.message || 'Failed to load feedback');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  const avgRating =
-    feedbacks.length > 0
-      ? feedbacks.reduce((sum, f) => sum + (f.rating ?? 0), 0) / feedbacks.length
-      : null;
-
-  if (isLoading) {
-    return (
-      <div className="card feedbacks-card">
-        <div className="loading-state">
-          <span className="spinner"></span> Loading your ratings...
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="card feedbacks-card">
-      <h2>Driver Ratings &amp; Reviews</h2>
-      <p className="text-muted">Passenger ratings and feedback for your completed trips</p>
-
-      {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
-
-      {!errorMessage && feedbacks.length === 0 ? (
-        <div className="empty-state">
-          <span className="empty-icon">⭐</span>
-          <p>No feedback received yet.</p>
-          <span className="text-muted text-xs">Complete trips to receive ratings from passengers!</span>
-        </div>
-      ) : (
-        <>
-          {avgRating !== null && (
-            <div className="driver-rating-banner">
-              <div className="big-rating-number">{avgRating.toFixed(1)}</div>
-              <div className="rating-stars-row">
-                {'★'.repeat(Math.round(avgRating))}{'☆'.repeat(5 - Math.round(avgRating))}
-              </div>
-              <span className="text-xs text-muted">
-                Based on {feedbacks.length} verified passenger {feedbacks.length === 1 ? 'trip' : 'trips'}
-              </span>
-            </div>
-          )}
-          <div className="review-items-list">
-            {feedbacks.map((fb: any) => (
-              <div key={fb.id} className="review-item">
-                <div className="review-header">
-                  <span className="review-user">{fb.user?.name ?? 'Passenger'}</span>
-                  <span className="rating-pill">★ {fb.rating}</span>
-                </div>
-                {fb.comment && <p className="review-text">"{fb.comment}"</p>}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {activeTab === 'feedbacks' && <DriverFeedbacksPanel onOpenAuth={onOpenAuth} />}
     </div>
   );
 };

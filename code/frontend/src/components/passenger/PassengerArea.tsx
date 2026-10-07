@@ -3,6 +3,7 @@ import { RideBookingCard } from './RideBookingCard';
 import { ActiveRideCard } from './ActiveRideCard';
 import { PassengerRideHistory } from './PassengerRideHistory';
 import { FeedbackModal } from './FeedbackModal';
+import { PassengerDashboardStats } from './PassengerDashboardStats';
 import { useRouter } from '../../context/RouterContext';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
@@ -60,6 +61,9 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
         // If ride reached a terminal state, stop polling
         if (!ACTIVE_STATUSES.has(updated.status)) {
           stopPolling();
+          if (updated.status === 'COMPLETED') {
+            setFeedbackRideId(updated.id);
+          }
         }
       }
     } catch {
@@ -112,11 +116,15 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
 
   return (
     <div className="passenger-area-container">
+      {/* Dashboard Stats Banner */}
+      <PassengerDashboardStats />
+
       {successBanner && (
         <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
           ⭐ {successBanner}
         </div>
       )}
+
       {/* Dynamic Tab Switch View */}
       {activeTab === 'book' && (
         <div className="passenger-grid">
@@ -125,6 +133,7 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
             <ActiveRideCard
               ride={activeRide}
               onRefresh={handleRefreshRide}
+              onRideUpdated={(updated) => setActiveRide(updated)}
               onOpenFeedback={(id) => setFeedbackRideId(id)}
             />
           )}
@@ -146,6 +155,7 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
             <ActiveRideCard
               ride={activeRide}
               onRefresh={handleRefreshRide}
+              onRideUpdated={(updated) => setActiveRide(updated)}
               onOpenFeedback={(id) => setFeedbackRideId(id)}
             />
           ) : (
