@@ -15,7 +15,7 @@ export const DriverStatusCard: React.FC = () => {
   const [currentLat, setCurrentLat] = useState<number>(driver?.currentLat ?? 28.6315);
   const [currentLng, setCurrentLng] = useState<number>(driver?.currentLng ?? 77.2167);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'info' | 'success' | 'error' } | null>(null);
 
   const handleToggleAvailability = async () => {
     const nextState = !isAvailable;
@@ -25,12 +25,22 @@ export const DriverStatusCard: React.FC = () => {
       await apiClient.updateDriverAvailability(nextState);
       setIsAvailable(nextState);
       updateDriverProfile({ isAvailable: nextState });
-      setStatusMessage(`Driver status is now ${nextState ? 'ONLINE (Accepting Rides)' : 'OFFLINE'}`);
-    } catch {
-      // If unauthorized or local simulation, update state locally
-      setIsAvailable(nextState);
-      updateDriverProfile({ isAvailable: nextState });
-      setStatusMessage(`Status toggled to ${nextState ? 'ONLINE' : 'OFFLINE'}`);
+      setStatusMessage({
+        text: `Driver status is now ${nextState ? 'ONLINE (Accepting Rides)' : 'OFFLINE'}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        setStatusMessage({ text: 'You must be logged in as a driver to change availability.', type: 'error' });
+      } else {
+        // Network error – apply locally and show info
+        setIsAvailable(nextState);
+        updateDriverProfile({ isAvailable: nextState });
+        setStatusMessage({
+          text: `Status toggled to ${nextState ? 'ONLINE' : 'OFFLINE'} (offline mode)`,
+          type: 'info',
+        });
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -44,10 +54,21 @@ export const DriverStatusCard: React.FC = () => {
     try {
       await apiClient.updateDriverLocation(lat, lng);
       updateDriverProfile({ currentLat: lat, currentLng: lng });
-      setStatusMessage(`GPS location updated to Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
-    } catch {
-      updateDriverProfile({ currentLat: lat, currentLng: lng });
-      setStatusMessage(`Simulated GPS updated: (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      setStatusMessage({
+        text: `GPS location updated to Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        setStatusMessage({ text: 'Authentication required to update location.', type: 'error' });
+      } else {
+        // Network error – update locally
+        updateDriverProfile({ currentLat: lat, currentLng: lng });
+        setStatusMessage({
+          text: `Simulated GPS updated: (${lat.toFixed(4)}, ${lng.toFixed(4)}) (offline mode)`,
+          type: 'info',
+        });
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -57,7 +78,7 @@ export const DriverStatusCard: React.FC = () => {
     <div className="card driver-status-card">
       <div className="card-header">
         <div>
-          <h2>Driver Availability & Telemetry</h2>
+          <h2>Driver Availability &amp; Telemetry</h2>
           <p className="text-muted">Manage dispatch status and real-time vehicle GPS coordinates</p>
         </div>
         <div className="status-toggle-box">
@@ -67,12 +88,16 @@ export const DriverStatusCard: React.FC = () => {
             disabled={isUpdating}
           >
             <span className="toggle-dot"></span>
-            {isAvailable ? 'ONLINE' : 'OFFLINE'}
+            {isUpdating ? '...' : isAvailable ? 'ONLINE' : 'OFFLINE'}
           </button>
         </div>
       </div>
 
-      {statusMessage && <div className="alert alert-info">{statusMessage}</div>}
+      {statusMessage && (
+        <div className={`alert alert-${statusMessage.type === 'error' ? 'error' : statusMessage.type === 'success' ? 'success' : 'info'}`}>
+          {statusMessage.text}
+        </div>
+      )}
 
       <div className="driver-telemetry-grid">
         <div className="telemetry-item">
@@ -85,14 +110,14 @@ export const DriverStatusCard: React.FC = () => {
         <div className="telemetry-item">
           <span className="telemetry-label">Vehicle Registration</span>
           <span className="telemetry-val font-semibold">
-            {driver?.vehiclePlate || 'DL-01-AB-1234'} ({driver?.vehicleType || 'STANDARD'})
+            {driver?.vehiclePlate ?? 'DL-01-AB-1234'} ({driver?.vehicleType ?? 'STANDARD'})
           </span>
         </div>
 
         <div className="telemetry-item">
           <span className="telemetry-label">Driver Rating</span>
           <span className="telemetry-val text-warning">
-            ★ {driver?.rating ? driver.rating.toFixed(1) : '5.0'} / 5.0
+            ★ {driver?.rating != null ? driver.rating.toFixed(1) : '5.0'} / 5.0
           </span>
         </div>
       </div>

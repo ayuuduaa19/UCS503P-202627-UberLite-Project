@@ -56,9 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDriver(res.data.driver || null);
         setToken(res.data.token);
       }
-    } finally {
+    } catch (err) {
       setIsLoading(false);
+      throw err;
     }
+    setIsLoading(false);
   };
 
   const register = async (payload: {
@@ -81,9 +83,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDriver(res.data.driver || null);
         setToken(res.data.token);
       }
-    } finally {
+    } catch (err) {
       setIsLoading(false);
+      throw err;
     }
+    setIsLoading(false);
   };
 
   const logout = () => {

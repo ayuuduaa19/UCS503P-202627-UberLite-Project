@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import type { Ride } from '../../types';
 
 interface DriverRideHistoryProps {
@@ -7,12 +8,17 @@ interface DriverRideHistoryProps {
 }
 
 export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth }) => {
+  const { isAuthenticated } = useAuth();
   const [rides, setRides] = useState<Ride[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchData = async () => {
+    if (!isAuthenticated) {
+      onOpenAuth();
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -21,11 +27,14 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
         apiClient.getDriverFeedbacks(),
       ]);
 
-      if (ridesRes.status === 'fulfilled' && ridesRes.value.data) {
-        setRides(ridesRes.value.data);
+      if (ridesRes.status === 'fulfilled') {
+        // Backend returns { data: { rides, count } } or { data: <rides[]> }
+        const ridesData: Ride[] = (ridesRes.value.data as any)?.rides ?? (Array.isArray(ridesRes.value.data) ? ridesRes.value.data : []);
+        setRides(ridesData);
       }
-      if (feedbacksRes.status === 'fulfilled' && feedbacksRes.value.data) {
-        setFeedbacks(feedbacksRes.value.data);
+      if (feedbacksRes.status === 'fulfilled') {
+        const fbData: any[] = (feedbacksRes.value.data as any)?.feedbacks ?? (Array.isArray(feedbacksRes.value.data) ? feedbacksRes.value.data : []);
+        setFeedbacks(fbData);
       }
     } catch (err: any) {
       if (err.statusCode === 401) {
@@ -38,8 +47,32 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isAuthenticated) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="card driver-history-card">
+        <div className="card-header">
+          <div>
+            <h2>Driver Completed Trips &amp; Earnings</h2>
+            <p className="text-muted">Review fulfilled trips, payouts, and customer reviews</p>
+          </div>
+        </div>
+        <div className="empty-state">
+          <span className="empty-icon">🔒</span>
+          <p>Sign in to view your trip history.</p>
+          <button className="btn btn-primary mt-3" onClick={onOpenAuth}>
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
 
   const totalEarnings = rides.reduce((sum, r) => sum + (r.fare?.totalFare || 0), 0);
 

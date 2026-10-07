@@ -22,7 +22,8 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
   onOpenFeedback,
 }) => {
   const [isMatching, setIsMatching] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: 'info' | 'error' | 'success' } | null>(null);
 
   const getStepIndex = (status: RideStatus) => {
     return STATUS_STEPS.findIndex((s) => s.status === status);
@@ -36,13 +37,25 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
     try {
       const res = await apiClient.matchRide(ride.id);
       if (res.success) {
-        setMessage('Driver successfully matched!');
+        setMessage({ text: 'Driver successfully matched! Refreshing...', type: 'success' });
         onRefresh();
       }
     } catch (err: any) {
-      setMessage(err.message || 'No drivers available at this moment.');
+      setMessage({
+        text: err.message || 'No drivers available at this moment.',
+        type: 'error',
+      });
     } finally {
       setIsMatching(false);
+    }
+  };
+
+  const handleRefreshClick = async () => {
+    setIsRefreshing(true);
+    try {
+      onRefresh();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 800);
     }
   };
 
@@ -55,12 +68,20 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
           </span>
           <span className="ride-id-text text-muted text-xs">ID: {ride.id.slice(0, 8)}...</span>
         </div>
-        <button className="btn btn-xs btn-outline" onClick={onRefresh}>
-          🔄 Refresh Status
+        <button
+          className="btn btn-xs btn-outline"
+          onClick={handleRefreshClick}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? '↻ Refreshing...' : '🔄 Refresh Status'}
         </button>
       </div>
 
-      {message && <div className="alert alert-info">{message}</div>}
+      {message && (
+        <div className={`alert alert-${message.type === 'error' ? 'error' : message.type === 'success' ? 'success' : 'info'}`}>
+          {message.text}
+        </div>
+      )}
 
       {/* Ride Progress Stepper */}
       <div className="progress-stepper">
@@ -108,7 +129,9 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
           <div className="driver-info-details">
             <div className="driver-name-row">
               <span className="font-semibold">{ride.driver.user?.name || 'Assigned Driver'}</span>
-              <span className="rating-pill">★ {ride.driver.rating.toFixed(1)}</span>
+              <span className="rating-pill">
+                ★ {ride.driver.rating != null ? ride.driver.rating.toFixed(1) : '5.0'}
+              </span>
             </div>
             <div className="vehicle-details-row text-xs text-muted">
               <span>{ride.driver.vehicleModel} ({ride.driver.vehicleType})</span>
@@ -139,7 +162,7 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
         <div className="trip-completed-panel">
           <div className="completed-fare-box">
             <span className="fare-tag">Final Fare</span>
-            <span className="fare-value">₹{ride.fare?.totalFare || 270}</span>
+            <span className="fare-value">₹{ride.fare?.totalFare ?? '—'}</span>
           </div>
           <button
             className="btn btn-primary btn-block"

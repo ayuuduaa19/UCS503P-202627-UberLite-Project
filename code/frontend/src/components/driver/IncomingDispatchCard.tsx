@@ -21,13 +21,20 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
     setErrorMessage(null);
     try {
       const res = await apiClient.acceptRide(ride.id);
-      if (res.data) {
-        onAccepted(res.data);
+      // Backend returns { data: { ride } }
+      const accepted = (res.data as any)?.ride ?? res.data;
+      onAccepted(accepted ?? { ...ride, status: 'ACCEPTED' });
+    } catch (err: any) {
+      if (err.statusCode === 409 || err.statusCode === 400) {
+        // Ride was already accepted or rejected by another driver — dismiss
+        setErrorMessage(err.message || 'Ride is no longer available.');
+        setTimeout(() => onRejected(), 1500);
+      } else if (err.statusCode === 401 || err.statusCode === 403) {
+        setErrorMessage('You are not authorised to accept this ride.');
       } else {
+        // Network error – optimistically accept to not block the driver UX
         onAccepted({ ...ride, status: 'ACCEPTED' });
       }
-    } catch {
-      onAccepted({ ...ride, status: 'ACCEPTED' });
     } finally {
       setIsProcessing(false);
     }
@@ -39,8 +46,14 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
     try {
       await apiClient.rejectRide(ride.id);
       onRejected();
-    } catch {
-      onRejected();
+    } catch (err: any) {
+      if (err.statusCode === 409 || err.statusCode === 400) {
+        // Already rejected/completed — just dismiss
+        onRejected();
+      } else {
+        // Network error – still dismiss to avoid blocking the driver
+        onRejected();
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -54,7 +67,7 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
           <span>⚡ INCOMING RIDE DISPATCH</span>
         </div>
         <span className="dispatch-distance text-xs font-semibold">
-          {ride.distanceKm || 20} km trip
+          {ride.distanceKm ?? '—'} km trip
         </span>
       </div>
 
@@ -80,11 +93,13 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
       <div className="dispatch-fare-preview">
         <div className="dispatch-fare-col">
           <span className="text-xs text-muted">Estimated Payout</span>
-          <span className="dispatch-amount">₹{ride.fare?.totalFare || 270}</span>
+          <span className="dispatch-amount">
+            {ride.fare?.totalFare != null ? `₹${ride.fare.totalFare}` : '—'}
+          </span>
         </div>
         <div className="dispatch-fare-col">
           <span className="text-xs text-muted">Passenger</span>
-          <span className="dispatch-passenger">{ride.passenger?.name || 'Alice Passenger'}</span>
+          <span className="dispatch-passenger">{ride.passenger?.name ?? 'Passenger'}</span>
         </div>
       </div>
 
@@ -95,7 +110,7 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
           onClick={handleReject}
           disabled={isProcessing}
         >
-          ✕ Decline
+          {isProcessing ? '...' : '✕ Decline'}
         </button>
         <button
           type="button"
@@ -103,7 +118,7 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
           onClick={handleAccept}
           disabled={isProcessing}
         >
-          ✓ Accept Ride
+          {isProcessing ? 'Processing...' : '✓ Accept Ride'}
         </button>
       </div>
     </div>

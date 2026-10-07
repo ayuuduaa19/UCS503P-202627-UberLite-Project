@@ -18,6 +18,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -29,14 +30,28 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
 
     try {
       await apiClient.submitRideFeedback(rideId, rating, comment);
-      onSuccess();
-      onClose();
+      setIsSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1000);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to submit feedback');
-    } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="modal-backdrop">
+        <div className="modal-card text-center" style={{ padding: '2.5rem 1.5rem' }}>
+          <span style={{ fontSize: '3rem' }}>🎉</span>
+          <h3 style={{ margin: '1rem 0 0.5rem' }}>Rating Submitted!</h3>
+          <p className="text-muted">Thank you for rating your trip and helping our community.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-backdrop">
