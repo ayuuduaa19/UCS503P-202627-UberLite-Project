@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RideBookingCard } from './RideBookingCard';
 import { ActiveRideCard } from './ActiveRideCard';
 import { PassengerRideHistory } from './PassengerRideHistory';
@@ -13,25 +13,53 @@ interface PassengerAreaProps {
   onOpenAuth: () => void;
 }
 
-const ACTIVE_STATUSES = ['REQUESTED', 'MATCHED', 'ACCEPTED', 'IN_PROGRESS'];
-const POLL_INTERVAL_MS = 8000;
+/** Ride statuses that are still in flight and require polling */
+const ACTIVE_STATUSES = new Set<string>(['REQUESTED', 'MATCHED', 'ACCEPTED', 'IN_PROGRESS']);
+const POLL_INTERVAL_MS = 5000;
 
 export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
   const { activeTab } = useRouter();
   const { isAuthenticated } = useAuth();
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [feedbackRideId, setFeedbackRideId] = useState<string | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Poll the active ride status if one exists
-  const pollActiveRide = async (rideId: string) => {
+  /** Fetch active ride on initial load or auth change */
+  const fetchActiveRide = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await apiClient.getPassengerRides();
+      const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
+      const active = rides.find((r) => ACTIVE_STATUSES.has(r.status));
+      if (active) {
+        setActiveRide(active);
+      }
+    } catch {
+      // Ignore network error on initial load
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchActiveRide();
+    } else {
+      setActiveRide(null);
+      stopPolling();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  /** Refresh the active ride from the backend to pick up status transitions. */
+  const refreshActiveRide = async (rideId: string) => {
     try {
       const res = await apiClient.getRideDetails(rideId);
-      if (res.data) {
-        const updated = res.data;
-        setActiveRide(updated);
-        // If ride reached terminal state, stop polling and prompt feedback
-        if (updated.status === 'COMPLETED' || updated.status === 'CANCELLED') {
+      // Backend returns { data: { ride } } or { data: <ride> }
+      const updated = (res.data as any)?.ride ?? res.data;
+      if (updated) {
+        setActiveRide(updated as Ride);
+        // If ride reached a terminal state, stop polling
+        if (!ACTIVE_STATUSES.has(updated.status)) {
           stopPolling();
           if (updated.status === 'COMPLETED') {
             setFeedbackRideId(updated.id);
@@ -39,54 +67,63 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
         }
       }
     } catch {
-      // silently ignore polling errors
+      // Network error – keep polling silently
     }
   };
 
   const stopPolling = () => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
+    if (pollRef.current !== null) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
     }
   };
 
+  const startPolling = (rideId: string) => {
+    stopPolling();
+    pollRef.current = setInterval(() => refreshActiveRide(rideId), POLL_INTERVAL_MS);
+  };
+
+  // Whenever active ride changes, decide whether to poll
   useEffect(() => {
-    if (activeRide && ACTIVE_STATUSES.includes(activeRide.status) && isAuthenticated) {
-      // Start polling every 8 seconds
-      stopPolling();
-      pollTimerRef.current = setInterval(() => {
-        pollActiveRide(activeRide.id);
-      }, POLL_INTERVAL_MS);
+    if (activeRide && ACTIVE_STATUSES.has(activeRide.status) && isAuthenticated) {
+      startPolling(activeRide.id);
     } else {
       stopPolling();
     }
     return stopPolling;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.id, activeRide?.status, isAuthenticated]);
 
-  // Attempt to resume an in-progress ride on load
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    apiClient
-      .getPassengerRides()
-      .then((res) => {
-        if (res.data && res.data.length > 0) {
-          const ongoing = res.data.find((r) => ACTIVE_STATUSES.includes(r.status));
-          if (ongoing) {
-            setActiveRide(ongoing);
-          }
-        }
-      })
-      .catch(() => {});
-  }, [isAuthenticated]);
+  // Cleanup on unmount
+  useEffect(() => stopPolling, []);
 
   const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
+  };
+
+  const handleRefreshRide = () => {
+    if (activeRide) {
+      refreshActiveRide(activeRide.id);
+    }
+  };
+
+  const handleFeedbackSuccess = () => {
+    setFeedbackRideId(null);
+    setActiveRide(null);
+    setSuccessBanner('Thank you for rating your trip! Your feedback has been recorded.');
+    setTimeout(() => setSuccessBanner(null), 5000);
   };
 
   return (
     <div className="passenger-area-container">
       {/* Dashboard Stats Banner */}
       <PassengerDashboardStats />
+
+      {successBanner && (
+        <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+          ⭐ {successBanner}
+        </div>
+      )}
 
       {/* Dynamic Tab Switch View */}
       {activeTab === 'book' && (
@@ -95,7 +132,7 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
           {activeRide && (
             <ActiveRideCard
               ride={activeRide}
-              onRefresh={() => pollActiveRide(activeRide.id)}
+              onRefresh={handleRefreshRide}
               onRideUpdated={(updated) => setActiveRide(updated)}
               onOpenFeedback={(id) => setFeedbackRideId(id)}
             />
@@ -105,10 +142,19 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
 
       {activeTab === 'active' && (
         <div className="passenger-single-view">
-          {activeRide ? (
+          {!isAuthenticated ? (
+            <div className="card text-center empty-pad">
+              <span className="empty-icon">🔒</span>
+              <h3>Sign In Required</h3>
+              <p className="text-muted">Please sign in to view your active ride.</p>
+              <button className="btn btn-primary mt-3" onClick={onOpenAuth}>
+                Sign In
+              </button>
+            </div>
+          ) : activeRide ? (
             <ActiveRideCard
               ride={activeRide}
-              onRefresh={() => pollActiveRide(activeRide.id)}
+              onRefresh={handleRefreshRide}
               onRideUpdated={(updated) => setActiveRide(updated)}
               onOpenFeedback={(id) => setFeedbackRideId(id)}
             />
@@ -159,7 +205,7 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
           rideId={feedbackRideId}
           isOpen={true}
           onClose={() => setFeedbackRideId(null)}
-          onSuccess={() => setFeedbackRideId(null)}
+          onSuccess={handleFeedbackSuccess}
         />
       )}
     </div>

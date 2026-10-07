@@ -626,6 +626,173 @@ describe('Location-Based Matching Service', () => {
     });
   });
 
+  describe('Task 35: Concurrency-Safe Driver Assignment', () => {
+    it('should reject concurrent assignment when driver availability changes inside transaction (409 Conflict)', async () => {
+      const originalRideFind = prisma.ride.findUnique;
+      const originalDriverFind = prisma.driver.findUnique;
+      const originalTx = prisma.$transaction;
+
+      // Outer pre-check sees driver available, but tx finds driver unavailable
+      let callCount = 0;
+      prisma.ride.findUnique = (async () => ({
+        id: 'ride-c1',
+        passengerId: 'p-1',
+        status: RideStatus.REQUESTED,
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+      })) as any;
+
+      prisma.driver.findUnique = (async () => {
+        callCount++;
+        if (callCount === 1) {
+          // Eligibility check before transaction: available
+          return {
+            id: 'driver-concurrent',
+            userId: 'u-driver',
+            isAvailable: true,
+            currentLat: 28.615,
+            currentLng: 77.21,
+            user: { name: 'Driver C' },
+          } as any;
+        }
+        // Inside transaction: driver was taken by concurrent request!
+        return {
+          id: 'driver-concurrent',
+          userId: 'u-driver',
+          isAvailable: false,
+          currentLat: 28.615,
+          currentLng: 77.21,
+        } as any;
+      }) as any;
+
+      prisma.$transaction = (async (cb: any) => cb(prisma)) as any;
+
+      try {
+        await assert.rejects(
+          async () => {
+            await matchingService.assignDriverToRide('ride-c1', 'driver-concurrent', 'p-1');
+          },
+          (err: any) => {
+            assert.ok(err instanceof AppError);
+            assert.strictEqual(err.statusCode, 409);
+            assert.strictEqual(err.message, 'Driver is no longer available for assignment');
+            return true;
+          }
+        );
+      } finally {
+        prisma.ride.findUnique = originalRideFind;
+        prisma.driver.findUnique = originalDriverFind;
+        prisma.$transaction = originalTx;
+      }
+    });
+
+    it('should reject concurrent matching when ride is matched by a concurrent request (409 Conflict)', async () => {
+      const originalRideFind = prisma.ride.findUnique;
+      const originalDriverFindMany = prisma.driver.findMany;
+      const originalTx = prisma.$transaction;
+
+      let rideFindCount = 0;
+      prisma.ride.findUnique = (async () => {
+        rideFindCount++;
+        if (rideFindCount === 1) {
+          // Pre-transaction check: REQUESTED
+          return {
+            id: 'ride-concurrent-2',
+            passengerId: 'p-1',
+            status: RideStatus.REQUESTED,
+            pickupLat: 28.6139,
+            pickupLng: 77.209,
+          };
+        }
+        // Inside transaction: ride already MATCHED concurrently!
+        return {
+          id: 'ride-concurrent-2',
+          status: RideStatus.MATCHED,
+          driverId: 'other-driver',
+        };
+      }) as any;
+
+      prisma.driver.findMany = (async () => [
+        {
+          id: 'driver-near',
+          userId: 'u-near',
+          isAvailable: true,
+          currentLat: 28.6145,
+          currentLng: 77.2092,
+          rating: 4.9,
+          user: { name: 'Near' },
+        },
+      ]) as any;
+
+      prisma.$transaction = (async (cb: any) => cb(prisma)) as any;
+
+      try {
+        await assert.rejects(
+          async () => {
+            await matchingService.matchDriverForRide('ride-concurrent-2', {}, 'p-1');
+          },
+          (err: any) => {
+            assert.ok(err instanceof AppError);
+            assert.strictEqual(err.statusCode, 409);
+            assert.strictEqual(err.message, 'Ride has already been matched by a concurrent request');
+            return true;
+          }
+        );
+      } finally {
+        prisma.ride.findUnique = originalRideFind;
+        prisma.driver.findMany = originalDriverFindMany;
+        prisma.$transaction = originalTx;
+      }
+    });
+
+    it('should reject assignment when atomic updateMany finds driver already updated (count 0)', async () => {
+      const originalRideFind = prisma.ride.findUnique;
+      const originalDriverFind = prisma.driver.findUnique;
+      const originalDriverUpdateMany = prisma.driver.updateMany;
+      const originalTx = prisma.$transaction;
+
+      prisma.ride.findUnique = (async () => ({
+        id: 'ride-c3',
+        passengerId: 'p-1',
+        status: RideStatus.REQUESTED,
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+      })) as any;
+
+      prisma.driver.findUnique = (async () => ({
+        id: 'driver-c3',
+        userId: 'u-driver',
+        isAvailable: true,
+        currentLat: 28.615,
+        currentLng: 77.21,
+        user: { name: 'Driver C3' },
+      })) as any;
+
+      // Simulate atomic row-level update returning count: 0 (concurrent transaction already committed)
+      prisma.driver.updateMany = (async () => ({ count: 0 })) as any;
+      prisma.$transaction = (async (cb: any) => cb(prisma)) as any;
+
+      try {
+        await assert.rejects(
+          async () => {
+            await matchingService.assignDriverToRide('ride-c3', 'driver-c3', 'p-1');
+          },
+          (err: any) => {
+            assert.ok(err instanceof AppError);
+            assert.strictEqual(err.statusCode, 409);
+            assert.strictEqual(err.message, 'Driver is no longer available for assignment');
+            return true;
+          }
+        );
+      } finally {
+        prisma.ride.findUnique = originalRideFind;
+        prisma.driver.findUnique = originalDriverFind;
+        prisma.driver.updateMany = originalDriverUpdateMany;
+        prisma.$transaction = originalTx;
+      }
+    });
+  });
+
   describe('Passenger Controller Endpoints for Matching', () => {
     it('matchRideWithDriver should return 200 and matched driver data', async () => {
       const originalMatch = matchingService.matchDriverForRide;

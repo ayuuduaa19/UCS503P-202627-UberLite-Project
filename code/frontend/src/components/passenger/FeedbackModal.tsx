@@ -57,7 +57,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
       setTimeout(() => {
         onSuccess();
         onClose();
-      }, 1800);
+      }, 1500);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to submit feedback. Please try again.');
     } finally {

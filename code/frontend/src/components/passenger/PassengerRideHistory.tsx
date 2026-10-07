@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import type { Ride } from '../../types';
 
 interface PassengerRideHistoryProps {
@@ -11,18 +12,23 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
   onOpenFeedback,
   onOpenAuth,
 }) => {
+  const { isAuthenticated } = useAuth();
   const [rides, setRides] = useState<Ride[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchHistory = async () => {
+    if (!isAuthenticated) {
+      onOpenAuth();
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
     try {
       const res = await apiClient.getPassengerRideHistory();
-      if (res.data) {
-        setRides(res.data);
-      }
+      // Backend returns { data: { rides, count } } or { data: <rides[]> }
+      const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
+      setRides(rides);
     } catch (err: any) {
       if (err.statusCode === 401) {
         onOpenAuth();
@@ -34,8 +40,31 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
   };
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (isAuthenticated) {
+      fetchHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="card history-card">
+        <div className="card-header">
+          <div>
+            <h2>Passenger Ride History</h2>
+            <p className="text-muted">Review past trips, fares, and feedback</p>
+          </div>
+        </div>
+        <div className="empty-state">
+          <span className="empty-icon">🔒</span>
+          <p>Sign in to view your ride history.</p>
+          <button className="btn btn-primary mt-3" onClick={onOpenAuth}>
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const totalRides = rides.length;
   const totalSpend = rides.reduce((sum, r) => sum + (r.fare?.totalFare ?? 0), 0);

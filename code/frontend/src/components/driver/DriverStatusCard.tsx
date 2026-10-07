@@ -17,7 +17,7 @@ export const DriverStatusCard: React.FC = () => {
   const [currentLat, setCurrentLat] = useState<number>(ctxDriver?.currentLat ?? 28.6315);
   const [currentLng, setCurrentLng] = useState<number>(ctxDriver?.currentLng ?? 77.2167);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'info' | 'success' | 'error' } | null>(null);
 
   // Load fresh profile from API if authenticated
   useEffect(() => {
@@ -55,14 +55,22 @@ export const DriverStatusCard: React.FC = () => {
         setProfile((prev) => (prev ? { ...prev, isAvailable: nextState } : null));
       }
       updateDriverProfile({ isAvailable: nextState });
-      setStatusMessage(
-        `Driver status is now ${nextState ? 'ONLINE (Accepting Rides)' : 'OFFLINE'}`,
-      );
-    } catch {
-      // Optimistic local update on failure
-      setIsAvailable(nextState);
-      updateDriverProfile({ isAvailable: nextState });
-      setStatusMessage(`Status toggled to ${nextState ? 'ONLINE' : 'OFFLINE'}`);
+      setStatusMessage({
+        text: `Driver status is now ${nextState ? 'ONLINE (Accepting Rides)' : 'OFFLINE'}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        setStatusMessage({ text: 'You must be logged in as a driver to change availability.', type: 'error' });
+      } else {
+        // Network error – apply locally and show info
+        setIsAvailable(nextState);
+        updateDriverProfile({ isAvailable: nextState });
+        setStatusMessage({
+          text: `Status toggled to ${nextState ? 'ONLINE' : 'OFFLINE'} (offline mode)`,
+          type: 'info',
+        });
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -79,10 +87,21 @@ export const DriverStatusCard: React.FC = () => {
         setProfile((prev) => (prev ? { ...prev, currentLat: lat, currentLng: lng } : null));
       }
       updateDriverProfile({ currentLat: lat, currentLng: lng });
-      setStatusMessage(`GPS location updated to Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
-    } catch {
-      updateDriverProfile({ currentLat: lat, currentLng: lng });
-      setStatusMessage(`Simulated GPS updated: (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      setStatusMessage({
+        text: `GPS location updated to Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        setStatusMessage({ text: 'Authentication required to update location.', type: 'error' });
+      } else {
+        // Network error – update locally
+        updateDriverProfile({ currentLat: lat, currentLng: lng });
+        setStatusMessage({
+          text: `Simulated GPS updated: (${lat.toFixed(4)}, ${lng.toFixed(4)}) (offline mode)`,
+          type: 'info',
+        });
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -102,12 +121,16 @@ export const DriverStatusCard: React.FC = () => {
             disabled={isUpdating}
           >
             <span className="toggle-dot"></span>
-            {isAvailable ? 'ONLINE' : 'OFFLINE'}
+            {isUpdating ? '...' : isAvailable ? 'ONLINE' : 'OFFLINE'}
           </button>
         </div>
       </div>
 
-      {statusMessage && <div className="alert alert-info">{statusMessage}</div>}
+      {statusMessage && (
+        <div className={`alert alert-${statusMessage.type === 'error' ? 'error' : statusMessage.type === 'success' ? 'success' : 'info'}`}>
+          {statusMessage.text}
+        </div>
+      )}
 
       <div className="driver-telemetry-grid">
         <div className="telemetry-item">
@@ -120,14 +143,14 @@ export const DriverStatusCard: React.FC = () => {
         <div className="telemetry-item">
           <span className="telemetry-label">Vehicle Registration</span>
           <span className="telemetry-val font-semibold">
-            {displayProfile?.vehiclePlate || 'DL-01-AB-1234'} ({displayProfile?.vehicleType || 'STANDARD'})
+            {displayProfile?.vehiclePlate ?? 'DL-01-AB-1234'} ({displayProfile?.vehicleType ?? 'STANDARD'})
           </span>
         </div>
 
         <div className="telemetry-item">
           <span className="telemetry-label">Driver Rating</span>
           <span className="telemetry-val text-warning">
-            ★ {displayProfile?.rating ? displayProfile.rating.toFixed(1) : '5.0'} / 5.0
+            ★ {displayProfile?.rating != null ? displayProfile.rating.toFixed(1) : '5.0'} / 5.0
           </span>
         </div>
 

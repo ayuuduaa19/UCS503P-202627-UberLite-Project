@@ -20,7 +20,7 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
   onTripCompleted,
 }) => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'info' | 'success' | 'error' } | null>(null);
   const [elapsedSec, setElapsedSec] = useState<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -49,12 +49,17 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
     setStatusMessage(null);
     try {
       const res = await apiClient.startRide(ride.id);
-      const updated = res.data ?? { ...ride, status: 'IN_PROGRESS' as const };
+      const updated = (res.data as any)?.ride ?? res.data ?? { ...ride, status: 'IN_PROGRESS' as const };
       onTripUpdated(updated);
-      setStatusMessage('Trip started! Driving towards destination.');
-    } catch {
-      onTripUpdated({ ...ride, status: 'IN_PROGRESS' });
-      setStatusMessage('Trip started! Driving towards destination.');
+      setStatusMessage({ text: 'Trip started! Driving towards destination.', type: 'success' });
+    } catch (err: any) {
+      if (err.statusCode === 400 || err.statusCode === 409) {
+        setStatusMessage({ text: err.message || 'Cannot start ride in current state.', type: 'error' });
+      } else {
+        // Network error – optimistic update
+        onTripUpdated({ ...ride, status: 'IN_PROGRESS' });
+        setStatusMessage({ text: 'Trip started! Driving towards destination.', type: 'info' });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -70,18 +75,27 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
         ride.distanceKm ?? 20,
         ride.durationMin ?? durationFromTimer,
       );
-      const updated = res.data ?? { ...ride, status: 'COMPLETED' as const };
+      const updated = (res.data as any)?.ride ?? res.data ?? { ...ride, status: 'COMPLETED' as const };
       onTripUpdated(updated);
-      setStatusMessage(`Trip completed! Fare: ₹${updated.fare?.totalFare?.toFixed(0) ?? '—'}`);
+      const fareAmount = updated.fare?.totalFare ?? ride.fare?.totalFare;
+      setStatusMessage({
+        text: `Trip completed! Fare: ₹${fareAmount != null ? Math.round(fareAmount) : '—'}`,
+        type: 'success',
+      });
       setTimeout(() => {
         onTripCompleted();
-      }, 2000);
-    } catch {
-      onTripUpdated({ ...ride, status: 'COMPLETED' });
-      setStatusMessage('Trip completed successfully! Fare generated.');
-      setTimeout(() => {
-        onTripCompleted();
-      }, 2000);
+      }, 1800);
+    } catch (err: any) {
+      if (err.statusCode === 400 || err.statusCode === 409) {
+        setStatusMessage({ text: err.message || 'Cannot complete ride in current state.', type: 'error' });
+      } else {
+        // Network error – optimistic update
+        onTripUpdated({ ...ride, status: 'COMPLETED' });
+        setStatusMessage({ text: 'Trip completed successfully! Fare generated.', type: 'info' });
+        setTimeout(() => {
+          onTripCompleted();
+        }, 1800);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -108,8 +122,8 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       </div>
 
       {statusMessage && (
-        <div className={`alert ${ride.status === 'COMPLETED' ? 'alert-success' : 'alert-info'}`}>
-          {statusMessage}
+        <div className={`alert alert-${statusMessage.type === 'error' ? 'error' : statusMessage.type === 'success' ? 'success' : 'info'}`}>
+          {statusMessage.text}
         </div>
       )}
 
@@ -166,7 +180,7 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
         <div className="metric-box">
           <span className="metric-label">Est. Payout</span>
           <span className="metric-val text-success">
-            ₹{fare?.totalFare != null ? fare.totalFare.toFixed(0) : '—'}
+            ₹{fare?.totalFare != null ? fare.totalFare.toFixed(0) : (ride.fare?.totalFare != null ? ride.fare.totalFare.toFixed(0) : '—')}
           </span>
         </div>
       </div>
@@ -211,7 +225,7 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
 
         {ride.status === 'COMPLETED' && (
           <div className="alert alert-success text-center">
-            🎉 Trip completed! Total Fare: ₹{fare?.totalFare?.toFixed(0) ?? '—'}
+            🎉 Trip completed! Total Fare: ₹{fare?.totalFare != null ? fare.totalFare.toFixed(0) : (ride.fare?.totalFare != null ? ride.fare.totalFare.toFixed(0) : '—')}
           </div>
         )}
       </div>

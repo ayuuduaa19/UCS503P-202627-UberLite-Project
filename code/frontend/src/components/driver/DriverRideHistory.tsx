@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import type { Ride } from '../../types';
 
 interface DriverRideHistoryProps {
@@ -7,18 +8,23 @@ interface DriverRideHistoryProps {
 }
 
 export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth }) => {
+  const { isAuthenticated } = useAuth();
   const [rides, setRides] = useState<Ride[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchData = async () => {
+    if (!isAuthenticated) {
+      onOpenAuth();
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
     try {
       const res = await apiClient.getDriverRideHistory();
-      if (res.data) {
-        setRides(res.data);
-      }
+      // Backend returns { data: { rides, count } } or { data: <rides[]> }
+      const ridesData: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
+      setRides(ridesData);
     } catch (err: any) {
       if (err.statusCode === 401) {
         onOpenAuth();
@@ -30,8 +36,32 @@ export const DriverRideHistory: React.FC<DriverRideHistoryProps> = ({ onOpenAuth
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isAuthenticated) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="card driver-history-card">
+        <div className="card-header">
+          <div>
+            <h2>Driver Completed Trips &amp; Earnings</h2>
+            <p className="text-muted">Review fulfilled trips, payouts, and customer reviews</p>
+          </div>
+        </div>
+        <div className="empty-state">
+          <span className="empty-icon">🔒</span>
+          <p>Sign in to view your trip history.</p>
+          <button className="btn btn-primary mt-3" onClick={onOpenAuth}>
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
 
   const totalEarnings = rides.reduce((sum, r) => sum + (r.fare?.totalFare ?? 0), 0);
   const totalDistance = rides.reduce((sum, r) => sum + (r.distanceKm ?? 0), 0);

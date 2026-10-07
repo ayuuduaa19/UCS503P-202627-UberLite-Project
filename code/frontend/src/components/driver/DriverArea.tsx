@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DriverStatusCard } from './DriverStatusCard';
 import { IncomingDispatchCard } from './IncomingDispatchCard';
 import { ActiveTripCard } from './ActiveTripCard';
@@ -13,130 +13,86 @@ interface DriverAreaProps {
   onOpenAuth: () => void;
 }
 
-const DISPATCH_POLL_MS = 7000;   // poll for new incoming rides every 7s
-const TRIP_POLL_MS = 8000;       // poll active trip status every 8s
+const POLL_INTERVAL_MS = 5000;
 
 export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
   const { activeTab } = useRouter();
   const { isAuthenticated } = useAuth();
-
   const [incomingRide, setIncomingRide] = useState<Ride | null>(null);
   const [activeTrip, setActiveTrip] = useState<Ride | null>(null);
-  const [isPolling, setIsPolling] = useState<boolean>(false);
+  const [isPollError, setIsPollError] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const dispatchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tripPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ─── Fetch incoming dispatch (MATCHED rides assigned to this driver) ───────
-  const fetchIncomingDispatch = useCallback(async () => {
+  /**
+   * Poll the backend for MATCHED rides assigned to this driver.
+   * A MATCHED ride is one the driver hasn't accepted or rejected yet.
+   * Also polls for ACCEPTED / IN_PROGRESS to restore activeTrip after refresh.
+   */
+  const pollDriverRides = async () => {
     if (!isAuthenticated) return;
     try {
-      const res = await apiClient.getDriverRides('MATCHED');
-      if (res.data && res.data.length > 0) {
-        // Only show if not currently in an active trip
-        if (!activeTrip) {
-          setIncomingRide(res.data[0]);
+      const res = await apiClient.getDriverRides();
+      const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
+      setIsPollError(false);
+
+      const matched = rides.find((r) => r.status === 'MATCHED');
+      const inProgress = rides.find((r) => r.status === 'ACCEPTED' || r.status === 'IN_PROGRESS');
+
+      setIncomingRide(matched ?? null);
+
+      // Restore or keep activeTrip up to date
+      setActiveTrip((prev) => {
+        if (prev && (prev.status === 'ACCEPTED' || prev.status === 'IN_PROGRESS')) {
+          return inProgress ?? prev;
         }
-      } else {
-        // Clear incoming if no longer pending
-        setIncomingRide((prev) => {
-          // Keep previous if it's a local simulation
-          if (prev?.id?.startsWith('dispatch-demo')) return prev;
-          return null;
-        });
-      }
+        return inProgress ?? null;
+      });
     } catch {
-      // silently ignore network errors during polling
+      setIsPollError(true);
     }
-  }, [isAuthenticated, activeTrip]);
+  };
 
-  // ─── Fetch active trip (ACCEPTED / IN_PROGRESS) ───────────────────────────
-  const fetchActiveTrip = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const [acceptedRes, inProgressRes] = await Promise.allSettled([
-        apiClient.getDriverRides('ACCEPTED'),
-        apiClient.getDriverRides('IN_PROGRESS'),
-      ]);
-
-      let foundTrip: Ride | null = null;
-      if (acceptedRes.status === 'fulfilled' && acceptedRes.value.data?.length) {
-        foundTrip = acceptedRes.value.data[0];
-      } else if (inProgressRes.status === 'fulfilled' && inProgressRes.value.data?.length) {
-        foundTrip = inProgressRes.value.data[0];
-      }
-
-      if (foundTrip) {
-        setActiveTrip(foundTrip);
-        setIncomingRide(null);
-      }
-    } catch {
-      // silently ignore
+  const stopPolling = () => {
+    if (pollRef.current !== null) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
     }
-  }, [isAuthenticated]);
+    setIsPolling(false);
+  };
 
-  // ─── Resume in-flight state on mount ─────────────────────────────────────
+  const startPolling = () => {
+    stopPolling();
+    setIsPolling(true);
+    pollRef.current = setInterval(pollDriverRides, POLL_INTERVAL_MS);
+  };
+
   useEffect(() => {
-    if (!isAuthenticated) return;
-    // Load current state from API on initial mount
-    fetchActiveTrip();
-    fetchIncomingDispatch();
-  }, [isAuthenticated]);
-
-  // ─── Start dispatch polling when no active trip ───────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    if (!activeTrip) {
-      dispatchPollRef.current = setInterval(fetchIncomingDispatch, DISPATCH_POLL_MS);
-      setIsPolling(true);
+    if (isAuthenticated) {
+      pollDriverRides(); // immediate first fetch
+      startPolling();
     } else {
-      // Clear dispatch polling when actively on a trip
-      if (dispatchPollRef.current) {
-        clearInterval(dispatchPollRef.current);
-        dispatchPollRef.current = null;
-      }
-      setIsPolling(false);
+      stopPolling();
+      setIncomingRide(null);
+      setActiveTrip(null);
     }
+    return stopPolling;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
-    return () => {
-      if (dispatchPollRef.current) {
-        clearInterval(dispatchPollRef.current);
-        dispatchPollRef.current = null;
-      }
-    };
-  }, [isAuthenticated, activeTrip, fetchIncomingDispatch]);
-
-  // ─── Poll active trip status ──────────────────────────────────────────────
+  // Stop polling when on history or feedbacks tab (less critical)
   useEffect(() => {
-    if (!isAuthenticated || !activeTrip) {
-      if (tripPollRef.current) {
-        clearInterval(tripPollRef.current);
-        tripPollRef.current = null;
-      }
-      return;
+    if (activeTab === 'history' || activeTab === 'feedbacks') {
+      stopPolling();
+    } else if (isAuthenticated) {
+      startPolling();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isAuthenticated]);
 
-    if (activeTrip.status === 'ACCEPTED' || activeTrip.status === 'IN_PROGRESS') {
-      tripPollRef.current = setInterval(async () => {
-        try {
-          const res = await apiClient.getDriverRides(activeTrip.status);
-          if (res.data && res.data.length > 0) {
-            setActiveTrip(res.data[0]);
-          }
-        } catch { /* ignore */ }
-      }, TRIP_POLL_MS);
-    }
+  // Cleanup on unmount
+  useEffect(() => stopPolling, []);
 
-    return () => {
-      if (tripPollRef.current) {
-        clearInterval(tripPollRef.current);
-        tripPollRef.current = null;
-      }
-    };
-  }, [isAuthenticated, activeTrip?.id, activeTrip?.status]);
-
-  // ─── Handlers ────────────────────────────────────────────────────────────
   const handleRideAccepted = (acceptedRide: Ride) => {
     setIncomingRide(null);
     setActiveTrip({ ...acceptedRide, status: 'ACCEPTED' });
@@ -148,8 +104,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
   const handleTripCompleted = () => {
     setActiveTrip(null);
-    // Resume dispatch polling after trip completes
-    fetchIncomingDispatch();
+    pollDriverRides();
   };
 
   return (
@@ -158,13 +113,17 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
         <div className="driver-grid">
           <DriverStatusCard />
 
-          {/* Polling indicator */}
-          {isPolling && isAuthenticated && (
-            <div className="polling-indicator text-xs text-muted">
+          {/* Polling / Error status banner */}
+          {isPollError && isAuthenticated ? (
+            <div className="alert alert-error" style={{ margin: '0.5rem 0' }}>
+              ⚠️ Could not reach server to check for incoming dispatches. Retrying...
+            </div>
+          ) : isPolling && isAuthenticated && !incomingRide && !activeTrip ? (
+            <div className="polling-indicator text-xs text-muted" style={{ margin: '0.5rem 0' }}>
               <span className="pulse-circle pulse-green"></span>
               Listening for incoming ride dispatches...
             </div>
-          )}
+          ) : null}
 
           {incomingRide && !activeTrip && (
             <IncomingDispatchCard
@@ -186,7 +145,16 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
       {activeTab === 'active' && (
         <div className="driver-single-view">
-          {activeTrip ? (
+          {!isAuthenticated ? (
+            <div className="card text-center empty-pad">
+              <span className="empty-icon">🔒</span>
+              <h3>Sign In Required</h3>
+              <p className="text-muted">Please sign in to manage your trips.</p>
+              <button className="btn btn-primary mt-3" onClick={onOpenAuth}>
+                Sign In as Driver
+              </button>
+            </div>
+          ) : activeTrip ? (
             <ActiveTripCard
               ride={activeTrip}
               onTripUpdated={(updated) => setActiveTrip(updated)}
@@ -203,15 +171,10 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
               <span className="empty-icon">🚗</span>
               <h3>No Active Trip</h3>
               <p className="text-muted">
-                {isAuthenticated
-                  ? 'You are currently waiting for incoming dispatches.'
-                  : 'Sign in as a driver to receive ride requests.'}
+                {isPollError
+                  ? 'Unable to connect to server. Please check your connection.'
+                  : 'You are currently waiting for incoming dispatches.'}
               </p>
-              {!isAuthenticated && (
-                <button className="btn btn-sm btn-primary mt-3" onClick={onOpenAuth}>
-                  Sign In as Driver
-                </button>
-              )}
             </div>
           )}
         </div>

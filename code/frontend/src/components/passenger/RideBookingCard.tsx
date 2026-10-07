@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiClient } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import type { Ride, VehicleType } from '../../types';
 import { calculateFareBreakdown } from '../../utils/fare';
 import { calculateRideDistance } from '../../utils/location';
@@ -40,6 +41,7 @@ const PRESET_ROUTES = [
 ];
 
 export const RideBookingCard: React.FC<RideBookingCardProps> = ({ onRideCreated, onOpenAuth }) => {
+  const { isAuthenticated } = useAuth();
   const [pickupAddress, setPickupAddress] = useState(PRESET_ROUTES[0].pickupAddress);
   const [pickupLat, setPickupLat] = useState<number>(PRESET_ROUTES[0].pickupLat);
   const [pickupLng, setPickupLng] = useState<number>(PRESET_ROUTES[0].pickupLng);
@@ -71,6 +73,10 @@ export const RideBookingCard: React.FC<RideBookingCardProps> = ({ onRideCreated,
 
   const handleBookRide = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      onOpenAuth();
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -87,8 +93,11 @@ export const RideBookingCard: React.FC<RideBookingCardProps> = ({ onRideCreated,
         vehicleType,
       });
 
-      if (res.data) {
-        onRideCreated(res.data);
+      // Backend returns: { data: { ride, matched, matchedDriver? } }
+      // Extract the ride object from the nested data structure.
+      const rideData = (res.data as any)?.ride ?? res.data;
+      if (rideData) {
+        onRideCreated(rideData);
       }
     } catch (err: any) {
       if (err.statusCode === 401) {
