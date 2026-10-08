@@ -5,9 +5,13 @@ import authRouter from "./routes/auth.routes";
 import locationRouter from "./routes/location.routes";
 import passengerRouter from "./routes/passenger.routes";
 import driverRouter from "./routes/driver.routes";
+import evaluationRouter from "./routes/evaluation.routes";
 import { notFoundHandler, errorHandler } from "./middleware/errorHandler";
+import { responseTimeMiddleware } from "./middleware/metrics.middleware";
 
 const app = express();
+
+app.use(responseTimeMiddleware);
 
 const allowedOrigins = config.corsOrigin
   .split(",")
@@ -53,6 +57,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/location", locationRouter);
 app.use("/api/passenger", passengerRouter);
 app.use("/api/driver", driverRouter);
+app.use("/api/evaluation", evaluationRouter);
 
 app.use(notFoundHandler);
 

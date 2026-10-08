@@ -80,7 +80,7 @@ describe('Task 23: Backend Integration Tests', () => {
 
     prisma.user.create = (async ({ data, select }: any) => {
       const newUser: any = {
-        id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: data.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         email: data.email,
         password: data.password,
         name: data.name,
@@ -529,6 +529,16 @@ describe('Task 23: Backend Integration Tests', () => {
     });
 
     it('should allow valid passenger and driver tokens to access authorized endpoints', async () => {
+      await prisma.user.create({
+        data: {
+          id: 'user-pass-1',
+          email: 'passenger@uberlite.com',
+          password: 'Password123!',
+          name: 'Passenger',
+          role: Role.PASSENGER,
+        },
+      });
+
       const passengerToken = jwt.sign(
         { id: 'user-pass-1', userId: 'user-pass-1', email: 'passenger@uberlite.com', role: Role.PASSENGER },
         config.jwtSecret,
@@ -540,7 +550,7 @@ describe('Task 23: Backend Integration Tests', () => {
       const res = createMockResponse();
       let nextCalled = false;
 
-      authenticate(req, res, () => {
+      await authenticate(req, res, () => {
         nextCalled = true;
       });
 
@@ -650,7 +660,7 @@ describe('Task 23: Backend Integration Tests', () => {
 
       // Verify driver is marked unavailable while on trip
       const updatedDriver = await prisma.driver.findUnique({ where: { id: driver.id } });
-      assert.equal(updatedDriver?.isAvailable, false);
+      assert.equal(updatedDriver!.isAvailable, false);
 
       // Step D: Driver starts the ride (IN_PROGRESS)
       const startReq: any = {
@@ -690,7 +700,7 @@ describe('Task 23: Backend Integration Tests', () => {
 
       // Verify driver availability is restored upon ride completion
       const restoredDriver = await prisma.driver.findUnique({ where: { id: driver.id } });
-      assert.equal(restoredDriver?.isAvailable, true);
+      assert.equal(restoredDriver!.isAvailable, true);
 
       // Step F: Passenger submits feedback and 5-star rating
       const feedbackReq: any = {

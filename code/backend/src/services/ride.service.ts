@@ -230,7 +230,10 @@ export class RideService {
 
     const updatedRide = await prisma.ride.update({
       where: { id: rideId },
-      data: { status: RideStatus.ACCEPTED },
+      data: {
+        status: RideStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
       include: {
         passenger: {
           select: { id: true, name: true, phone: true, email: true },
@@ -302,7 +305,10 @@ export class RideService {
     const [updatedRide] = await prisma.$transaction([
       prisma.ride.update({
         where: { id: rideId },
-        data: { status: RideStatus.IN_PROGRESS },
+        data: {
+          status: RideStatus.IN_PROGRESS,
+          startedAt: new Date(),
+        },
         include: {
           passenger: {
             select: { id: true, name: true, phone: true, email: true },
@@ -377,7 +383,10 @@ export class RideService {
     const [updatedRide] = await prisma.$transaction([
       prisma.ride.update({
         where: { id: rideId },
-        data: { status: RideStatus.COMPLETED },
+        data: {
+          status: RideStatus.COMPLETED,
+          completedAt: new Date(),
+        },
         include: {
           passenger: {
             select: { id: true, name: true, phone: true, email: true },
@@ -456,6 +465,7 @@ export class RideService {
         data: {
           status: RideStatus.REQUESTED,
           driverId: null,
+          matchedAt: null,
         },
         include: {
           passenger: {
@@ -470,6 +480,70 @@ export class RideService {
     ]);
 
     return updatedRide;
+  }
+
+  /**
+   * Cancel a ride (can be requested by passenger or driver before completion).
+   */
+  async cancelRide(rideId: string, userId: string) {
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+      include: { driver: true },
+    });
+
+    if (!ride) {
+      throw new AppError('Ride not found', 404);
+    }
+
+    if (ride.status === RideStatus.COMPLETED) {
+      throw new AppError('Completed rides cannot be cancelled', 400);
+    }
+
+    if (ride.status === RideStatus.CANCELLED) {
+      throw new AppError('Ride is already cancelled', 400);
+    }
+
+    const isPassenger = ride.passengerId === userId;
+    const isAssignedDriver = ride.driver?.userId === userId;
+
+    if (!isPassenger && !isAssignedDriver) {
+      throw new AppError('Forbidden: You are not authorized to cancel this ride', 403);
+    }
+
+    const updates: any[] = [
+      prisma.ride.update({
+        where: { id: rideId },
+        data: {
+          status: RideStatus.CANCELLED,
+          cancelledAt: new Date(),
+        },
+        include: {
+          passenger: {
+            select: { id: true, name: true, phone: true, email: true },
+          },
+          driver: {
+            select: {
+              id: true,
+              vehicleType: true,
+              vehicleModel: true,
+              vehiclePlate: true,
+            },
+          },
+        },
+      }),
+    ];
+
+    if (ride.driverId) {
+      updates.push(
+        prisma.driver.update({
+          where: { id: ride.driverId },
+          data: { isAvailable: true },
+        })
+      );
+    }
+
+    const [cancelledRide] = await prisma.$transaction(updates);
+    return cancelledRide;
   }
 }
 

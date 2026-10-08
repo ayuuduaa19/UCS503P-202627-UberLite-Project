@@ -286,6 +286,7 @@ export class MatchingService {
         data: {
           driverId: driver.id,
           status: RideStatus.MATCHED,
+          matchedAt: new Date(),
         },
         include: {
           passenger: {
@@ -467,6 +468,7 @@ export class MatchingService {
         data: {
           driverId: driver.id,
           status: RideStatus.MATCHED,
+          matchedAt: new Date(),
         },
         include: {
           passenger: {
