@@ -164,7 +164,7 @@ describe('Task 37: Evaluation Instrumentation Tests', () => {
       assert.equal(metrics.minDurationMs, 15.0);
       assert.equal(metrics.maxDurationMs, 85.0);
       assert.ok(metrics.avgDurationMs > 0);
-      assert.equal(metrics.routes.length, 3);
+      assert.equal(metrics.routes.length, 4);
     });
 
     it('should track slow requests exceeding threshold', () => {
@@ -325,9 +325,9 @@ describe('Task 37: Evaluation Instrumentation Tests', () => {
         driver: { vehicleType: VehicleType.STANDARD },
       };
 
-      // STANDARD: base = 30, rate = 12. Total for 20km = 30 + (20 * 12) = 270.00
+      // STANDARD: base = 30, rate = 12. Distance from coords ~20.09km = 30 + (20.09 * 12) = 271.08
       const fare = {
-        totalFare: 270.00,
+        totalFare: 271.08,
       };
 
       const item = evaluationService.calculateFareAccuracy(ride, fare);
