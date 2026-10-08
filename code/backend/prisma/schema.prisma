@@ -89,6 +89,11 @@ model Ride {
   status         RideStatus @default(REQUESTED)
   distanceKm     Float?
   durationMin    Float?
+  matchedAt      DateTime?
+  acceptedAt     DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
   fare           Fare?
   feedbacks      Feedback[]
   createdAt      DateTime   @default(now())

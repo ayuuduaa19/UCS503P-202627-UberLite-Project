@@ -74,6 +74,11 @@ export interface Ride {
   status: RideStatus;
   distanceKm?: number | null;
   durationMin?: number | null;
+  matchedAt?: string | null;
+  acceptedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
   fare?: Fare | null;
   feedbacks?: Feedback[];
   passenger?: {

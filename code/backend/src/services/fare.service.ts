@@ -240,6 +240,7 @@ export class FareService {
           where: { id: ride.id },
           data: {
             status: RideStatus.COMPLETED,
+            completedAt: new Date(),
             distanceKm: breakdown.distanceKm,
           },
           include: {
