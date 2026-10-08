@@ -660,7 +660,7 @@ describe('Task 23: Backend Integration Tests', () => {
 
       // Verify driver is marked unavailable while on trip
       const updatedDriver = await prisma.driver.findUnique({ where: { id: driver.id } });
-      assert.equal(updatedDriver.isAvailable, false);
+      assert.equal(updatedDriver!.isAvailable, false);
 
       // Step D: Driver starts the ride (IN_PROGRESS)
       const startReq: any = {
@@ -700,7 +700,7 @@ describe('Task 23: Backend Integration Tests', () => {
 
       // Verify driver availability is restored upon ride completion
       const restoredDriver = await prisma.driver.findUnique({ where: { id: driver.id } });
-      assert.equal(restoredDriver.isAvailable, true);
+      assert.equal(restoredDriver!.isAvailable, true);
 
       // Step F: Passenger submits feedback and 5-star rating
       const feedbackReq: any = {
