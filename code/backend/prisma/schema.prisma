@@ -48,6 +48,7 @@ model User {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
+  @@index([role])
   @@map("users")
 }
 
@@ -68,29 +69,37 @@ model Driver {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
+  @@index([isAvailable])
+  @@index([currentLat, currentLng])
   @@map("drivers")
 }
 
 model Ride {
-  id             String      @id @default(uuid())
+  id             String     @id @default(uuid())
   passengerId    String
-  passenger      User        @relation("PassengerRides", fields: [passengerId], references: [id])
+  passenger      User       @relation("PassengerRides", fields: [passengerId], references: [id])
   driverId       String?
-  driver         Driver?     @relation("DriverRides", fields: [driverId], references: [id])
+  driver         Driver?    @relation("DriverRides", fields: [driverId], references: [id])
   pickupLat      Float
   pickupLng      Float
   pickupAddress  String
   dropoffLat     Float
   dropoffLng     Float
   dropoffAddress String
-  status         RideStatus  @default(REQUESTED)
+  status         RideStatus @default(REQUESTED)
   distanceKm     Float?
   durationMin    Float?
   fare           Fare?
   feedbacks      Feedback[]
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
+  @@index([passengerId])
+  @@index([driverId])
+  @@index([status])
+  @@index([passengerId, status])
+  @@index([driverId, status])
+  @@index([createdAt])
   @@map("rides")
 }
 
