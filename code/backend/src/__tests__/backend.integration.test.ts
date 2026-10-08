@@ -80,7 +80,7 @@ describe('Task 23: Backend Integration Tests', () => {
 
     prisma.user.create = (async ({ data, select }: any) => {
       const newUser: any = {
-        id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: data.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         email: data.email,
         password: data.password,
         name: data.name,
@@ -529,6 +529,16 @@ describe('Task 23: Backend Integration Tests', () => {
     });
 
     it('should allow valid passenger and driver tokens to access authorized endpoints', async () => {
+      await prisma.user.create({
+        data: {
+          id: 'user-pass-1',
+          email: 'passenger@uberlite.com',
+          password: 'Password123!',
+          name: 'Passenger',
+          role: Role.PASSENGER,
+        },
+      });
+
       const passengerToken = jwt.sign(
         { id: 'user-pass-1', userId: 'user-pass-1', email: 'passenger@uberlite.com', role: Role.PASSENGER },
         config.jwtSecret,
@@ -540,7 +550,7 @@ describe('Task 23: Backend Integration Tests', () => {
       const res = createMockResponse();
       let nextCalled = false;
 
-      authenticate(req, res, () => {
+      await authenticate(req, res, () => {
         nextCalled = true;
       });
 
