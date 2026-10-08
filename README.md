@@ -20,6 +20,7 @@
   - [2.3 Data Flow Diagrams](#23-data-flow-diagrams)
   - [2.5 User Stories](#25-user-stories)
 - [Getting Started](#getting-started)
+- [Deployment Configuration & Online Demonstration](#deployment-configuration--online-demonstration)
 
 ---
 
@@ -362,6 +363,71 @@ npm run dev
 ### Run Tests
 
 ```bash
+# Backend tests
 cd code/backend
 npm test
+
+# Frontend tests
+cd code/frontend
+npm test
 ```
+
+---
+
+## Deployment Configuration & Online Demonstration
+
+UberLite includes complete deployment configurations for online demonstrations across containerized environments and cloud platforms, using environment variables for all deployment-specific settings.
+
+### Option 1: Docker Compose Deployment (Recommended for Local & Demo Servers)
+
+The application provides production-ready container configurations for PostgreSQL, Express backend, and React frontend (served via Nginx with API reverse proxy and SPA routing).
+
+1. Copy the deployment environment template:
+   ```bash
+   cp .env.example .env
+   ```
+2. Start all services using Docker Compose:
+   ```bash
+   docker compose up --build -d
+   ```
+3. Access the demo services:
+   - **Frontend Application:** `http://localhost` (Port 80)
+   - **Backend API:** `http://localhost:5000`
+   - **API Health Check:** `http://localhost:5000/health`
+   - **PostgreSQL Database:** Port 5432
+
+The backend container automatically applies the Prisma database schema and seeds initial demo data on startup (configurable via `RUN_MIGRATIONS=true` and `RUN_SEED=true`).
+
+To stop all services:
+```bash
+docker compose down
+```
+
+### Option 2: Cloud Platform Deployment (Render Blueprint)
+
+A turnkey [`render.yaml`](./render.yaml) blueprint specification is provided for automated deployment on [Render](https://render.com):
+- **Managed PostgreSQL Database:** `uberlite-db`
+- **Express Backend Service:** `uberlite-backend` with automated Prisma migrations and startup seeding
+- **React Frontend Static Site:** `uberlite-frontend` with HTML5 History fallback and API URL binding
+
+### Option 3: Static Hosting (Vercel / Netlify / Cloudflare Pages)
+
+The frontend includes [`vercel.json`](./code/frontend/vercel.json) and [`_redirects`](./code/frontend/public/_redirects) for client-side routing fallback. Set the backend URL via environment variable:
+```bash
+VITE_API_URL=https://your-backend-service-url.com
+```
+
+### Deployment Environment Variables
+
+| Variable | Scope | Description | Default / Example |
+|---|---|---|---|
+| `PORT` | Backend / Frontend | Server port | Backend: `5000`, Frontend: `5173` / `80` |
+| `NODE_ENV` | Backend | Environment mode | `production` / `development` |
+| `DATABASE_URL` | Backend | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/uberlite?schema=public` |
+| `JWT_SECRET` | Backend | JWT secret key for signing tokens | `uberlite-super-secret-jwt-key...` |
+| `JWT_EXPIRES_IN` | Backend | JWT token expiration duration | `7d` |
+| `CORS_ORIGIN` | Backend | Allowed CORS origins (comma-separated or `*`) | `http://localhost,http://localhost:80,http://localhost:5173` |
+| `RUN_MIGRATIONS` | Backend (Container) | Run `prisma db push` on startup | `true` |
+| `RUN_SEED` | Backend (Container) | Seed demo database records on startup | `true` |
+| `VITE_API_URL` | Frontend | Backend API base URL (empty if reverse-proxied) | `http://localhost:5000` / `https://api.example.com` |
+

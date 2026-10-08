@@ -73,4 +73,21 @@ Outcome:
 Successfully integrated the frontend with the backend for the core ride lifecycle and strengthened driver assignment against concurrent requests.
 286/286 backend tests and 34/34 frontend tests passed; frontend production build completed successfully with 0 errors.
 
+
+Date: 8 October 2026
+
+Work Done:
+
+Added deployment configuration for the React frontend, Express backend, and PostgreSQL database for online demonstration.
+Created Dockerfiles for backend and frontend, and set up Docker Compose to orchestrate all services.
+Configured environment variables across frontend and backend for deployment settings (database URL, ports, CORS, and JWT).
+Added cloud platform deployment configurations (Render, Vercel, and Netlify) along with .env templates.
+Updated documentation with deployment instructions.
+
+Outcome:
+
+All 286/286 backend tests and 34/34 frontend tests passed; builds and linting completed with 0 errors.
+Learned full-stack containerization, environment variable configuration, and deployment workflows for online demonstration.
+
+
 

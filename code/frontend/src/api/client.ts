@@ -1,7 +1,7 @@
 import type { ApiResponse, AuthResponse, DriverProfile, Ride, User, VehicleType } from '../types';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
 
 class ApiClient {
   private baseUrl: string;
@@ -54,31 +54,26 @@ class ApiClient {
 
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
 
-      const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        const errorMessage =
-          data?.error?.message ||
-          data?.message ||
-          `Request failed with status ${response.status}`;
-        const error = new Error(errorMessage) as any;
-        error.statusCode = response.status;
-        error.code = data?.error?.code;
-        error.details = data?.error?.details;
-        throw error;
-      }
-
-      return data;
-    } catch (err: any) {
-      // Re-throw formatted error
-      throw err;
+    if (!response.ok) {
+      const errorMessage =
+        data?.error?.message ||
+        data?.message ||
+        `Request failed with status ${response.status}`;
+      const error = new Error(errorMessage) as any;
+      error.statusCode = response.status;
+      error.code = data?.error?.code;
+      error.details = data?.error?.details;
+      throw error;
     }
+
+    return data;
   }
 
   public get<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {

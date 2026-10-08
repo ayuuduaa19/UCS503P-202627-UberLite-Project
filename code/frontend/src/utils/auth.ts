@@ -11,8 +11,8 @@ export const AUTH_TOKEN_KEY = 'uberlite_auth_token';
 export const AUTH_USER_KEY = 'uberlite_auth_user';
 
 export const DEFAULT_API_BASE_URL =
-  typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL
-    ? (import.meta.env.VITE_API_BASE_URL as string)
+  typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL)
+    ? ((import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL) as string)
     : '';
 
 /**

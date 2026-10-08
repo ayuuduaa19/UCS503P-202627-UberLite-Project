@@ -11,12 +11,13 @@ const app = express();
 
 const allowedOrigins = config.corsOrigin
   .split(",")
-  .map((origin) => origin.trim());
+  .map((origin) => origin.trim().replace(/\/$/, ""));
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+      const normalizedOrigin = origin.replace(/\/$/, "");
+      if (allowedOrigins.includes("*") || allowedOrigins.includes(normalizedOrigin)) {
         return callback(null, true);
       }
       return callback(
