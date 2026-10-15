@@ -26,11 +26,14 @@ export const DriverStatusCard: React.FC = () => {
       .getDriverProfile()
       .then((res) => {
         if (res.data) {
-          const { user: _user, ...driverFields } = res.data;
-          setProfile(driverFields as DriverProfile);
-          setIsAvailable(driverFields.isAvailable);
-          if (driverFields.currentLat) setCurrentLat(driverFields.currentLat);
-          if (driverFields.currentLng) setCurrentLng(driverFields.currentLng);
+          const profileData: any =
+            (res.data as any)?.profile?.driverProfile ??
+            (res.data as any)?.driverProfile ??
+            res.data;
+          setProfile(profileData as DriverProfile);
+          if (profileData.isAvailable !== undefined) setIsAvailable(profileData.isAvailable);
+          if (profileData.currentLat) setCurrentLat(profileData.currentLat);
+          if (profileData.currentLng) setCurrentLng(profileData.currentLng);
         }
       })
       .catch(() => {

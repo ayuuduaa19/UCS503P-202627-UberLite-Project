@@ -424,6 +424,7 @@ describe('Location-Based Matching Service', () => {
       const originalRideFind = prisma.ride.findUnique;
       const originalDriverFind = prisma.driver.findUnique;
       const originalDriverUpdate = prisma.driver.update;
+      const originalDriverUpdateMany = prisma.driver.updateMany;
       const originalRideUpdate = prisma.ride.update;
       const originalTx = prisma.$transaction;
 
@@ -459,6 +460,11 @@ describe('Location-Based Matching Service', () => {
         return { id: args.where.id, ...args.data };
       }) as any;
 
+      prisma.driver.updateMany = (async (args: any) => {
+        updatedDriverData = args.data;
+        return { count: 1 };
+      }) as any;
+
       prisma.ride.update = (async (args: any) => {
         updatedRideData = args.data;
         return {
@@ -485,6 +491,7 @@ describe('Location-Based Matching Service', () => {
         prisma.ride.findUnique = originalRideFind;
         prisma.driver.findUnique = originalDriverFind;
         prisma.driver.update = originalDriverUpdate;
+        prisma.driver.updateMany = originalDriverUpdateMany;
         prisma.ride.update = originalRideUpdate;
         prisma.$transaction = originalTx;
       }
@@ -495,6 +502,7 @@ describe('Location-Based Matching Service', () => {
       const originalDriverFindMany = prisma.driver.findMany;
       const originalDriverFindUnique = prisma.driver.findUnique;
       const originalDriverUpdate = prisma.driver.update;
+      const originalDriverUpdateMany = prisma.driver.updateMany;
       const originalRideUpdate = prisma.ride.update;
       const originalTx = prisma.$transaction;
 
@@ -538,6 +546,11 @@ describe('Location-Based Matching Service', () => {
         return { id: args.where.id, isAvailable: args.data.isAvailable };
       }) as any;
 
+      prisma.driver.updateMany = (async (args: any) => {
+        driverUpdatedAvailable = args.data.isAvailable;
+        return { count: 1 };
+      }) as any;
+
       prisma.ride.update = (async (args: any) => {
         rideUpdatedStatus = args.data.status;
         rideUpdatedDriverId = args.data.driverId;
@@ -560,6 +573,7 @@ describe('Location-Based Matching Service', () => {
         prisma.driver.findMany = originalDriverFindMany;
         prisma.driver.findUnique = originalDriverFindUnique;
         prisma.driver.update = originalDriverUpdate;
+        prisma.driver.updateMany = originalDriverUpdateMany;
         prisma.ride.update = originalRideUpdate;
         prisma.$transaction = originalTx;
       }

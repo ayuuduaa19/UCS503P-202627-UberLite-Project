@@ -271,29 +271,47 @@ describe('Role-Based Authorization Middleware', () => {
     });
 
     it('should successfully authenticate valid Bearer token and attach req.user', async () => {
-      const validToken = signToken({
+      const mockUser = {
         id: 'user-pass-123',
         email: 'passenger123@uberlite.local',
+        name: 'Passenger 123',
+        phone: '+919876543210',
         role: Role.PASSENGER,
-      });
-
-      const req: any = {
-        headers: { authorization: `Bearer ${validToken}` },
       };
-      let nextCalled = false;
-      let nextError: any = null;
 
-      await authenticate(req, {} as any, (err?: any) => {
-        nextCalled = true;
-        nextError = err;
-      });
+      const originalFindUnique = prisma.user.findUnique;
+      prisma.user.findUnique = (async (args: any) => {
+        if (args.where.id === 'user-pass-123') return mockUser as any;
+        return null;
+      }) as any;
 
-      assert.strictEqual(nextCalled, true);
-      assert.strictEqual(nextError, undefined);
-      assert.ok(req.user);
-      assert.strictEqual(req.user.id, 'user-pass-123');
-      assert.strictEqual(req.user.email, 'passenger123@uberlite.local');
-      assert.strictEqual(req.user.role, Role.PASSENGER);
+      try {
+        const validToken = signToken({
+          id: 'user-pass-123',
+          email: 'passenger123@uberlite.local',
+          role: Role.PASSENGER,
+        });
+
+        const req: any = {
+          headers: { authorization: `Bearer ${validToken}` },
+        };
+        let nextCalled = false;
+        let nextError: any = null;
+
+        await authenticate(req, {} as any, (err?: any) => {
+          nextCalled = true;
+          nextError = err;
+        });
+
+        assert.strictEqual(nextCalled, true);
+        assert.strictEqual(nextError, undefined);
+        assert.ok(req.user);
+        assert.strictEqual(req.user.id, 'user-pass-123');
+        assert.strictEqual(req.user.email, 'passenger123@uberlite.local');
+        assert.strictEqual(req.user.role, Role.PASSENGER);
+      } finally {
+        prisma.user.findUnique = originalFindUnique;
+      }
     });
   });
 

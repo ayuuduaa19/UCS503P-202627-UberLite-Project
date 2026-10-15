@@ -187,6 +187,18 @@ describe('Task 23: Backend Integration Tests', () => {
       return mockDrivers[idx];
     }) as any;
 
+    prisma.driver.updateMany = (async ({ where, data }: any) => {
+      let count = 0;
+      for (let i = 0; i < mockDrivers.length; i++) {
+        const d = mockDrivers[i];
+        if (where?.id && d.id !== where.id) continue;
+        if (where?.isAvailable !== undefined && d.isAvailable !== where.isAvailable) continue;
+        mockDrivers[i] = { ...d, ...data, updatedAt: new Date() };
+        count++;
+      }
+      return { count };
+    }) as any;
+
     prisma.ride.create = (async ({ data, include }: any) => {
       const newRide = {
         id: `ride-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -622,7 +634,9 @@ describe('Task 23: Backend Integration Tests', () => {
       };
       const createRideRes = createMockResponse();
 
-      await requestRide(createRideReq, createRideRes, () => {});
+      await requestRide(createRideReq, createRideRes, (err: any) => {
+        if (err) throw err;
+      });
 
       assert.equal(createRideRes.statusCode, 201);
       assert.equal(createRideRes.body.success, true);

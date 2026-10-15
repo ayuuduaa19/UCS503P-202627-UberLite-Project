@@ -109,7 +109,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
   return (
     <div className="driver-area-container">
-      {activeTab === 'status' && (
+      {(activeTab === 'status' || !['active', 'history', 'feedbacks'].includes(activeTab)) && (
         <div className="driver-grid">
           <DriverStatusCard />
 

@@ -18,7 +18,7 @@ const ACTIVE_STATUSES = new Set<string>(['REQUESTED', 'MATCHED', 'ACCEPTED', 'IN
 const POLL_INTERVAL_MS = 5000;
 
 export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
-  const { activeTab } = useRouter();
+  const { activeTab, setActiveTab } = useRouter();
   const { isAuthenticated } = useAuth();
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [feedbackRideId, setFeedbackRideId] = useState<string | null>(null);
@@ -99,6 +99,14 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
 
   const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
+    // Switch to the Active Ride tab so the user can see their ride status
+    setActiveTab('active');
+    const msg =
+      ride.status === 'MATCHED'
+        ? '🚗 Driver matched! Your ride is confirmed.'
+        : '✅ Ride requested! Searching for a nearby driver...';
+    setSuccessBanner(msg);
+    setTimeout(() => setSuccessBanner(null), 6000);
   };
 
   const handleRefreshRide = () => {
@@ -126,7 +134,7 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
       )}
 
       {/* Dynamic Tab Switch View */}
-      {activeTab === 'book' && (
+      {(activeTab === 'book' || !['active', 'history', 'fare'].includes(activeTab)) && (
         <div className="passenger-grid">
           <RideBookingCard onRideCreated={handleRideCreated} onOpenAuth={onOpenAuth} />
           {activeRide && (
