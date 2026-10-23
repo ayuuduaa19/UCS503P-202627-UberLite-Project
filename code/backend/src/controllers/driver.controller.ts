@@ -249,6 +249,25 @@ export const getDriverFeedbacks = async (req: Request, res: Response, next: Next
   }
 };
 
+/**
+ * Get active ride for the authenticated driver (Task 40)
+ */
+export const getActiveRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const driverUserId = req.user!.id;
+    const activeRide = await rideService.getActiveRideForDriver(driverUserId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ride: activeRide,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * Accept a ride that has been matched to the authenticated driver.

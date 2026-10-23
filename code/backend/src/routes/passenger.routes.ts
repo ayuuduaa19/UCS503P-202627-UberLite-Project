@@ -5,6 +5,7 @@ import {
   getPassengerProfile,
   getPassengerRides,
   getPassengerRideHistory,
+  getActiveRide,
   requestRide,
   getRideDetails,
   matchRideWithDriver,
@@ -21,8 +22,9 @@ router.use(authenticate, authorize(Role.PASSENGER));
 
 router.get('/profile', getPassengerProfile);
 
-// Ride history endpoints (Task #19)
+// Ride history & active ride endpoints (Task #19 & #40)
 router.get('/rides/history', getPassengerRideHistory);
+router.get('/rides/active', getActiveRide);
 router.get('/rides', getPassengerRides);
 router.post('/rides', requestRide);
 router.get('/rides/:id', getRideDetails);

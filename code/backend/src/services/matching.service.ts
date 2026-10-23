@@ -7,7 +7,10 @@ import {
   CoordinatesInput,
   normalizeCoordinates,
   isValidCoordinate,
+  calculateBoundingBox,
+  isWithinBoundingBox,
 } from '../utils/location';
+import { concurrencyCoordinator } from '../utils/concurrency';
 import { MatchingOptions } from '../validators/matching.validator';
 
 export interface CandidateDriver {
@@ -36,6 +39,9 @@ export class MatchingService {
   /**
    * Find all currently available drivers within a radius of the pickup location,
    * calculating their distance and estimated arrival time, sorted closest first.
+   *
+   * Task 39: Location-based search optimization using geographic bounding box
+   * and composite index filtering at the database layer.
    */
   async findAvailableDrivers(
     pickupLocation: CoordinatesInput,
@@ -45,10 +51,19 @@ export class MatchingService {
     const maxRadiusKm = options.maxRadiusKm ?? 10.0;
     const limit = options.limit ?? 10;
 
+    // Task 39: Calculate geographic bounding box to filter at the database level
+    const bbox = calculateBoundingBox(pickupCoords, maxRadiusKm);
+
     const whereClause: any = {
       isAvailable: true,
-      currentLat: { not: null },
-      currentLng: { not: null },
+      currentLat: {
+        gte: bbox.minLat,
+        lte: bbox.maxLat,
+      },
+      currentLng: {
+        gte: bbox.minLng,
+        lte: bbox.maxLng,
+      },
     };
 
     if (options.vehicleType) {
@@ -185,8 +200,135 @@ export class MatchingService {
   }
 
   /**
+   * Internal helper to execute transactional driver assignment with atomic concurrency guards
+   */
+  private async executeDriverAssignmentTx(
+    rideId: string,
+    candidate: CandidateDriver,
+    authenticatedPassengerId?: string
+  ): Promise<MatchResult> {
+    return concurrencyCoordinator.withLock(`driver:${candidate.driverId}`, async () => {
+      const executeTx = async (tx: any) => {
+        // Re-check ride status inside transaction to prevent concurrent double-assignment
+        const freshRide = await tx.ride.findUnique({
+          where: { id: rideId },
+          select: { status: true, driverId: true, passengerId: true },
+        });
+
+        if (!freshRide || freshRide.status !== RideStatus.REQUESTED) {
+          throw new AppError(
+            'Ride has already been matched by a concurrent request',
+            409
+          );
+        }
+
+        if (authenticatedPassengerId && freshRide.passengerId !== authenticatedPassengerId) {
+          throw new AppError('Unauthorized: Ride belongs to a different passenger', 403);
+        }
+
+        // Re-check driver availability inside transaction to prevent double assignment
+        const driver = await tx.driver.findUnique({
+          where: { id: candidate.driverId },
+        });
+
+        if (!driver || !driver.isAvailable) {
+          throw new AppError('Driver is no longer available for assignment', 409);
+        }
+
+        // Atomically mark driver unavailable inside transaction to prevent concurrent double-booking
+        try {
+          if (typeof tx.driver.updateMany === 'function') {
+            const updateResult = await tx.driver.updateMany({
+              where: { id: driver.id, isAvailable: true },
+              data: { isAvailable: false },
+            });
+            if (updateResult && updateResult.count === 0) {
+              throw new AppError('Driver is no longer available for assignment', 409);
+            }
+          } else {
+            await tx.driver.update({
+              where: { id: driver.id },
+              data: { isAvailable: false },
+            });
+          }
+        } catch (err: any) {
+          if (err instanceof AppError) {
+            throw err;
+          }
+          if (err?.name === 'PrismaClientInitializationError') {
+            await tx.driver.update({
+              where: { id: driver.id },
+              data: { isAvailable: false },
+            });
+          } else {
+            throw err;
+          }
+        }
+
+        // Update ride with matched driver and MATCHED status
+        const updatedRide = await tx.ride.update({
+          where: { id: rideId },
+          data: {
+            driverId: driver.id,
+            status: RideStatus.MATCHED,
+            matchedAt: new Date(),
+          },
+          include: {
+            passenger: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
+            driver: {
+              select: {
+                id: true,
+                vehicleType: true,
+                vehicleModel: true,
+                vehiclePlate: true,
+                vehicleColor: true,
+                rating: true,
+                currentLat: true,
+                currentLng: true,
+                user: {
+                  select: {
+                    name: true,
+                    phone: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        return {
+          ride: updatedRide,
+          matchedDriver: candidate,
+        };
+      };
+
+      if (typeof prisma.$transaction === 'function') {
+        try {
+          return await prisma.$transaction(executeTx);
+        } catch (err: any) {
+          if (err?.name === 'PrismaClientInitializationError') {
+            return await executeTx(prisma);
+          }
+          throw err;
+        }
+      }
+      return await executeTx(prisma);
+    });
+  }
+
+  /**
    * Match and assign the nearest suitable available driver to a ride.
    * Prevents assignment if no driver is available or if driver is unavailable.
+   *
+   * Task 40: Enhanced concurrent ride handling. If the nearest candidate driver
+   * was claimed by a concurrent transaction, falls back to the next closest candidate.
    */
   async matchDriverForRide(
     rideId: string,
@@ -217,124 +359,44 @@ export class MatchingService {
     }
 
     const pickupCoords = { lat: ride.pickupLat, lng: ride.pickupLng };
-    const nearestDriver = await this.findNearestDriver(pickupCoords, options);
+    const candidates = await this.findAvailableDrivers(pickupCoords, {
+      ...options,
+      limit: Math.max(options.limit ?? 10, 10),
+    });
 
-    if (!nearestDriver) {
+    if (candidates.length === 0) {
       throw new AppError(
         'No available drivers found within the search radius. Please try again shortly.',
         404
       );
     }
 
-    // Transaction execution: update driver availability to false and ride status to MATCHED
-    const executeTx = async (tx: any) => {
-      // Re-check ride status inside transaction to prevent concurrent double-assignment
-      const freshRide = await tx.ride.findUnique({
-        where: { id: ride.id },
-        select: { status: true, driverId: true },
-      });
-
-      if (!freshRide || freshRide.status !== RideStatus.REQUESTED) {
-        throw new AppError(
-          'Ride has already been matched by a concurrent request',
-          409
-        );
-      }
-
-      // Re-check driver availability inside transaction to prevent double assignment
-      const driver = await tx.driver.findUnique({
-        where: { id: nearestDriver.driverId },
-      });
-
-      if (!driver || !driver.isAvailable) {
-        throw new AppError('Driver is no longer available for assignment', 409);
-      }
-
-      // Atomically mark driver unavailable inside transaction to prevent concurrent double-booking
+    let lastError: any = null;
+    for (const candidate of candidates) {
       try {
-        if (typeof tx.driver.updateMany === 'function') {
-          const updateResult = await tx.driver.updateMany({
-            where: { id: driver.id, isAvailable: true },
-            data: { isAvailable: false },
-          });
-          if (updateResult && updateResult.count === 0) {
-            throw new AppError('Driver is no longer available for assignment', 409);
-          }
-        } else {
-          await tx.driver.update({
-            where: { id: driver.id },
-            data: { isAvailable: false },
-          });
-        }
+        return await this.executeDriverAssignmentTx(ride.id, candidate, authenticatedPassengerId);
       } catch (err: any) {
-        if (err instanceof AppError) {
-          throw err;
+        if (
+          err instanceof AppError &&
+          err.statusCode === 409 &&
+          err.message.includes('Driver is no longer available')
+        ) {
+          lastError = err;
+          // Concurrent race condition: candidate was claimed just now. Try next nearest candidate!
+          continue;
         }
-        if (err?.name === 'PrismaClientInitializationError') {
-          await tx.driver.update({
-            where: { id: driver.id },
-            data: { isAvailable: false },
-          });
-        } else {
-          throw err;
-        }
-      }
-
-      // Update ride with matched driver and MATCHED status
-      const updatedRide = await tx.ride.update({
-        where: { id: ride.id },
-        data: {
-          driverId: driver.id,
-          status: RideStatus.MATCHED,
-          matchedAt: new Date(),
-        },
-        include: {
-          passenger: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
-            },
-          },
-          driver: {
-            select: {
-              id: true,
-              vehicleType: true,
-              vehicleModel: true,
-              vehiclePlate: true,
-              vehicleColor: true,
-              rating: true,
-              currentLat: true,
-              currentLng: true,
-              user: {
-                select: {
-                  name: true,
-                  phone: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      return {
-        ride: updatedRide,
-        matchedDriver: nearestDriver,
-      };
-    };
-
-    if (typeof prisma.$transaction === 'function') {
-      try {
-        return await prisma.$transaction(executeTx);
-      } catch (err: any) {
-        if (err?.name === 'PrismaClientInitializationError') {
-          return await executeTx(prisma);
-        }
+        // Ride already matched concurrently or unauthorized - throw immediately
         throw err;
       }
     }
-    return await executeTx(prisma);
+
+    throw (
+      lastError ||
+      new AppError(
+        'No available drivers found within the search radius. Please try again shortly.',
+        404
+      )
+    );
   }
 
   /**
@@ -408,116 +470,9 @@ export class MatchingService {
       estimatedArrivalMin,
     };
 
-    const executeTx = async (tx: any) => {
-      // Re-check ride status inside transaction to prevent concurrent double-assignment
-      const freshRide = await tx.ride.findUnique({
-        where: { id: ride.id },
-        select: { status: true, driverId: true },
-      });
-
-      if (!freshRide || freshRide.status !== RideStatus.REQUESTED) {
-        throw new AppError(
-          'Ride has already been matched by a concurrent request',
-          409
-        );
-      }
-
-      // Re-check driver availability inside transaction
-      const freshDriver = await tx.driver.findUnique({
-        where: { id: driver.id },
-        select: { isAvailable: true },
-      });
-
-      if (!freshDriver || !freshDriver.isAvailable) {
-        throw new AppError('Driver is no longer available for assignment', 409);
-      }
-
-      // Atomically mark driver unavailable inside transaction to prevent concurrent double-booking
-      try {
-        if (typeof tx.driver.updateMany === 'function') {
-          const updateResult = await tx.driver.updateMany({
-            where: { id: driver.id, isAvailable: true },
-            data: { isAvailable: false },
-          });
-          if (updateResult && updateResult.count === 0) {
-            throw new AppError('Driver is no longer available for assignment', 409);
-          }
-        } else {
-          await tx.driver.update({
-            where: { id: driver.id },
-            data: { isAvailable: false },
-          });
-        }
-      } catch (err: any) {
-        if (err instanceof AppError) {
-          throw err;
-        }
-        if (err?.name === 'PrismaClientInitializationError') {
-          await tx.driver.update({
-            where: { id: driver.id },
-            data: { isAvailable: false },
-          });
-        } else {
-          throw err;
-        }
-      }
-
-      // Update ride
-      const updatedRide = await tx.ride.update({
-        where: { id: ride.id },
-        data: {
-          driverId: driver.id,
-          status: RideStatus.MATCHED,
-          matchedAt: new Date(),
-        },
-        include: {
-          passenger: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
-            },
-          },
-          driver: {
-            select: {
-              id: true,
-              vehicleType: true,
-              vehicleModel: true,
-              vehiclePlate: true,
-              vehicleColor: true,
-              rating: true,
-              currentLat: true,
-              currentLng: true,
-              user: {
-                select: {
-                  name: true,
-                  phone: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      return {
-        ride: updatedRide,
-        matchedDriver: candidateInfo,
-      };
-    };
-
-    if (typeof prisma.$transaction === 'function') {
-      try {
-        return await prisma.$transaction(executeTx);
-      } catch (err: any) {
-        if (err?.name === 'PrismaClientInitializationError') {
-          return await executeTx(prisma);
-        }
-        throw err;
-      }
-    }
-    return await executeTx(prisma);
+    return await this.executeDriverAssignmentTx(ride.id, candidateInfo, authenticatedPassengerId);
   }
 }
 
 export const matchingService = new MatchingService();
+

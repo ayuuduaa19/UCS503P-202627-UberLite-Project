@@ -12,6 +12,7 @@ import {
   updateDriverStatus,
   getDriverRides,
   getDriverRideHistory,
+  getActiveRide,
   getDriverFeedbacks,
   acceptRide,
   rejectRide,
@@ -37,8 +38,9 @@ router.put('/location', updateDriverLocation);
 // Status endpoint (Gurleen's combined availability & location update)
 router.patch('/status', updateDriverStatus);
 
-// Driver rides and ride history endpoints (Task #19)
+// Driver rides, active ride, and ride history endpoints (Task #19 & #40)
 router.get('/rides/history', getDriverRideHistory);
+router.get('/rides/active', getActiveRide);
 router.get('/rides', getDriverRides);
 
 // Driver feedback endpoints (Task #20)

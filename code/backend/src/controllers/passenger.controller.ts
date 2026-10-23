@@ -141,23 +141,39 @@ export const getRideFeedback = async (req: Request, res: Response, next: NextFun
 
 
 /**
+ * Get active ride for the authenticated passenger (Task 40)
+ */
+export const getActiveRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const passengerId = req.user!.id;
+    const activeRide = await rideService.getActiveRideForPassenger(passengerId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ride: activeRide,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Request a ride for the authenticated passenger.
  *
- * Flow (Task 13):
- *  1. Validate input and create the ride record with status REQUESTED.
- *  2. Run the driver-matching algorithm to find the nearest available driver.
- *  3. If a driver is found:
- *       a. Update the ride with the matched driverId and status MATCHED.
- *          The `updatedAt` timestamp acts as the assignment timestamp.
- *       b. Mark the driver as unavailable to prevent double-booking.
- *  4. Return the final ride state (with driver info when matched).
+ * Flow:
+ *  1. Validate input and coordinate active rides (reject if active ride exists).
+ *  2. Create the ride record with status REQUESTED.
+ *  3. Search for available drivers with location-based search and concurrent retry.
+ *  4. Return the final ride state.
  */
 export const requestRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
     const validatedData = createRideSchema.parse(req.body);
 
-    // Step 1: Persist the initial ride record via rideService.
+    // Step 1: Persist the initial ride record via rideService with active ride coordination.
     const ride = await rideService.createRide(passengerId, validatedData);
 
     // Step 2: Search for the best available driver via the matching module.

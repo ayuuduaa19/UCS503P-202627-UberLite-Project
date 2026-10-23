@@ -162,6 +162,10 @@ class ApiClient {
     return this.get<Ride[]>(`/api/passenger/rides${query}`);
   }
 
+  public async getPassengerActiveRide(): Promise<ApiResponse<{ ride: Ride | null }>> {
+    return this.get<{ ride: Ride | null }>('/api/passenger/rides/active');
+  }
+
   public async getPassengerRideHistory(): Promise<ApiResponse<Ride[]>> {
     return this.get<Ride[]>('/api/passenger/rides/history');
   }
@@ -235,6 +239,10 @@ class ApiClient {
   public async getDriverRides(status?: string): Promise<ApiResponse<Ride[]>> {
     const query = status ? `?status=${encodeURIComponent(status)}` : '';
     return this.get<Ride[]>(`/api/driver/rides${query}`);
+  }
+
+  public async getDriverActiveRide(): Promise<ApiResponse<{ ride: Ride | null }>> {
+    return this.get<{ ride: Ride | null }>('/api/driver/rides/active');
   }
 
   public async getDriverRideHistory(): Promise<ApiResponse<Ride[]>> {
