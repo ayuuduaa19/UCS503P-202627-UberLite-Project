@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { concurrencyCoordinator } from '../utils/concurrency';
 import { CreateRideInput } from '../validators/ride.validator';
+import { RideHistoryFilterInput } from '../validators/feedback.validator';
+import { realtimeService } from './realtime.service';
 
 export class RideService {
   /**
@@ -107,7 +109,7 @@ export class RideService {
         });
 
         if (Array.isArray(rides)) {
-          const activeStatuses = [
+          const activeStatuses: RideStatus[] = [
             RideStatus.MATCHED,
             RideStatus.ACCEPTED,
             RideStatus.IN_PROGRESS,
@@ -174,6 +176,8 @@ export class RideService {
         },
       });
 
+      realtimeService.emitRideUpdate(ride, ride.status);
+
       return ride;
     });
   }
@@ -218,16 +222,153 @@ export class RideService {
   }
 
   /**
-   * Get completed ride history for a specific passenger
+   * Get completed ride history for a specific passenger with search and filtering support (Task 41)
    */
-  async getPassengerRideHistory(passengerId: string, status: RideStatus = RideStatus.COMPLETED) {
-    return this.getPassengerRides(passengerId, status);
+  async getPassengerRideHistory(
+    passengerId: string,
+    filterOrStatus?: RideStatus | RideHistoryFilterInput
+  ) {
+    const filter: RideHistoryFilterInput =
+      typeof filterOrStatus === 'string'
+        ? { status: filterOrStatus as RideStatus }
+        : filterOrStatus || {};
+
+    const where: any = { passengerId };
+
+    const status = filter.status ?? RideStatus.COMPLETED;
+    if (status) {
+      where.status = status;
+    }
+
+    // Date range filtering
+    const fromDate = filter.startDate || filter.from;
+    const toDate = filter.endDate || filter.to;
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        where.createdAt.gte = new Date(fromDate);
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        if (toDate.length <= 10) {
+          end.setUTCHours(23, 59, 59, 999);
+        }
+        where.createdAt.lte = end;
+      }
+    }
+
+    // Fare range filtering
+    if (filter.minFare !== undefined || filter.maxFare !== undefined) {
+      where.fare = where.fare || {};
+      where.fare.totalFare = {};
+      if (filter.minFare !== undefined && !isNaN(filter.minFare)) {
+        where.fare.totalFare.gte = filter.minFare;
+      }
+      if (filter.maxFare !== undefined && !isNaN(filter.maxFare)) {
+        where.fare.totalFare.lte = filter.maxFare;
+      }
+    }
+
+    // Vehicle type filtering
+    if (filter.vehicleType) {
+      where.driver = where.driver || {};
+      where.driver.vehicleType = filter.vehicleType;
+    }
+
+    // Rating filtering
+    if (filter.rating !== undefined && !isNaN(filter.rating)) {
+      where.feedbacks = {
+        some: {
+          rating: { gte: filter.rating },
+        },
+      };
+    }
+
+    // Search query across addresses and driver info
+    if (filter.search && filter.search.trim() !== '') {
+      const q = filter.search.trim();
+      where.OR = [
+        { pickupAddress: { contains: q, mode: 'insensitive' } },
+        { dropoffAddress: { contains: q, mode: 'insensitive' } },
+        {
+          driver: {
+            user: {
+              name: { contains: q, mode: 'insensitive' },
+            },
+          },
+        },
+        {
+          driver: {
+            vehiclePlate: { contains: q, mode: 'insensitive' },
+          },
+        },
+        {
+          driver: {
+            vehicleModel: { contains: q, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    const sortOrder = filter.sortOrder || 'desc';
+    if (filter.sortBy === 'fare' || filter.sortBy === 'totalFare') {
+      orderBy = { fare: { totalFare: sortOrder } };
+    } else if (filter.sortBy === 'distance' || filter.sortBy === 'distanceKm') {
+      orderBy = { distanceKm: sortOrder };
+    } else if (filter.sortBy === 'createdAt' || filter.sortBy === 'date') {
+      orderBy = { createdAt: sortOrder };
+    }
+
+    const queryOptions: any = {
+      where,
+      include: {
+        driver: {
+          select: {
+            id: true,
+            vehicleType: true,
+            vehicleModel: true,
+            vehiclePlate: true,
+            vehicleColor: true,
+            rating: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+        },
+        fare: true,
+        feedbacks: true,
+      },
+      orderBy,
+    };
+
+    if (filter.limit !== undefined && !isNaN(filter.limit)) {
+      queryOptions.take = filter.limit;
+    }
+    if (filter.offset !== undefined && !isNaN(filter.offset)) {
+      queryOptions.skip = filter.offset;
+    }
+
+    return prisma.ride.findMany(queryOptions);
   }
 
   /**
-   * Get completed ride history for a specific driver
+   * Get completed ride history for a specific driver with search and filtering support (Task 41)
    */
-  async getDriverRideHistory(driverUserId: string, status: RideStatus = RideStatus.COMPLETED) {
+  async getDriverRideHistory(
+    driverUserId: string,
+    filterOrStatus?: RideStatus | RideHistoryFilterInput
+  ) {
+    const filter: RideHistoryFilterInput =
+      typeof filterOrStatus === 'string'
+        ? { status: filterOrStatus as RideStatus }
+        : filterOrStatus || {};
+
     const driver = await prisma.driver.findUnique({
       where: { userId: driverUserId },
     });
@@ -237,11 +378,84 @@ export class RideService {
     }
 
     const where: any = { driverId: driver.id };
+    const status = filter.status ?? RideStatus.COMPLETED;
     if (status) {
       where.status = status;
     }
 
-    const rides = await prisma.ride.findMany({
+    // Date range filtering
+    const fromDate = filter.startDate || filter.from;
+    const toDate = filter.endDate || filter.to;
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        where.createdAt.gte = new Date(fromDate);
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        if (toDate.length <= 10) {
+          end.setUTCHours(23, 59, 59, 999);
+        }
+        where.createdAt.lte = end;
+      }
+    }
+
+    // Fare range filtering
+    if (filter.minFare !== undefined || filter.maxFare !== undefined) {
+      where.fare = where.fare || {};
+      where.fare.totalFare = {};
+      if (filter.minFare !== undefined && !isNaN(filter.minFare)) {
+        where.fare.totalFare.gte = filter.minFare;
+      }
+      if (filter.maxFare !== undefined && !isNaN(filter.maxFare)) {
+        where.fare.totalFare.lte = filter.maxFare;
+      }
+    }
+
+    // Rating filtering
+    if (filter.rating !== undefined && !isNaN(filter.rating)) {
+      where.feedbacks = {
+        some: {
+          rating: { gte: filter.rating },
+        },
+      };
+    }
+
+    // Search query across addresses and passenger info
+    if (filter.search && filter.search.trim() !== '') {
+      const q = filter.search.trim();
+      where.OR = [
+        { pickupAddress: { contains: q, mode: 'insensitive' } },
+        { dropoffAddress: { contains: q, mode: 'insensitive' } },
+        {
+          passenger: {
+            name: { contains: q, mode: 'insensitive' },
+          },
+        },
+        {
+          passenger: {
+            phone: { contains: q, mode: 'insensitive' },
+          },
+        },
+        {
+          passenger: {
+            email: { contains: q, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    const sortOrder = filter.sortOrder || 'desc';
+    if (filter.sortBy === 'fare' || filter.sortBy === 'totalFare') {
+      orderBy = { fare: { totalFare: sortOrder } };
+    } else if (filter.sortBy === 'distance' || filter.sortBy === 'distanceKm') {
+      orderBy = { distanceKm: sortOrder };
+    } else if (filter.sortBy === 'createdAt' || filter.sortBy === 'date') {
+      orderBy = { createdAt: sortOrder };
+    }
+
+    const queryOptions: any = {
       where,
       include: {
         passenger: {
@@ -265,10 +479,17 @@ export class RideService {
         fare: true,
         feedbacks: true,
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      orderBy,
+    };
 
-    return rides;
+    if (filter.limit !== undefined && !isNaN(filter.limit)) {
+      queryOptions.take = filter.limit;
+    }
+    if (filter.offset !== undefined && !isNaN(filter.offset)) {
+      queryOptions.skip = filter.offset;
+    }
+
+    return prisma.ride.findMany(queryOptions);
   }
 
 
@@ -402,6 +623,8 @@ export class RideService {
         },
       });
 
+      realtimeService.emitRideUpdate(updatedRide, RideStatus.ACCEPTED);
+
       return updatedRide;
     });
   }
@@ -484,6 +707,8 @@ export class RideService {
         }),
       ]);
 
+      realtimeService.emitRideUpdate(updatedRide, RideStatus.IN_PROGRESS);
+
       return updatedRide;
     });
   }
@@ -564,6 +789,8 @@ export class RideService {
         }),
       ]);
 
+      realtimeService.emitRideUpdate(updatedRide, RideStatus.COMPLETED);
+
       return updatedRide;
     });
   }
@@ -635,6 +862,8 @@ export class RideService {
         }),
       ]);
 
+      realtimeService.emitRideUpdate(updatedRide, 'REJECTED');
+
       return updatedRide;
     });
   }
@@ -701,6 +930,7 @@ export class RideService {
       }
 
       const [cancelledRide] = await prisma.$transaction(updates);
+      realtimeService.emitRideUpdate(cancelledRide, RideStatus.CANCELLED);
       return cancelledRide;
     });
   }

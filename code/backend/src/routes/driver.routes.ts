@@ -12,6 +12,7 @@ import {
   updateDriverStatus,
   getDriverRides,
   getDriverRideHistory,
+  streamDriverRideEvents,
   getActiveRide,
   getDriverFeedbacks,
   acceptRide,
@@ -24,6 +25,9 @@ const router = Router();
 router.use(authenticate, authorize(Role.DRIVER));
 
 router.get('/profile', getDriverProfile);
+
+// Real-time ride status synchronization stream (Task #42)
+router.get('/rides/events', streamDriverRideEvents);
 
 // Availability endpoints (supports both Gurleen's getDriverAvailability/updateAvailability and Ayush's getAvailability / PATCH & PUT)
 router.get('/availability', getDriverAvailability || getAvailability);
