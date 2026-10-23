@@ -13,7 +13,12 @@ import {
 import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
 import { feedbackService } from '../services/feedback.service';
-import { createFeedbackSchema, rideHistoryQuerySchema } from '../validators/feedback.validator';
+import { realtimeService } from '../services/realtime.service';
+import {
+  createFeedbackSchema,
+  rideHistoryQuerySchema,
+  rideHistoryFilterSchema,
+} from '../validators/feedback.validator';
 import { idParamSchema, rideFilterQuerySchema } from '../validators/common.validator';
 
 /**
@@ -71,20 +76,42 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * Get completed ride history for the authenticated passenger (Task #19)
+ * Get completed ride history for the authenticated passenger with filtering & search (Task #19 & #41)
  */
 export const getPassengerRideHistory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
-    const parsedQuery = rideHistoryQuerySchema.parse(req.query || {});
-    const rides = await rideService.getPassengerRideHistory(passengerId, parsedQuery.status);
+    const parsedQuery = rideHistoryFilterSchema.parse(req.query || {});
+    const rides = await rideService.getPassengerRideHistory(passengerId, parsedQuery);
 
     return res.status(200).json({
       success: true,
       data: {
         rides,
         count: rides.length,
+        filters: parsedQuery,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Stream real-time ride status events for the authenticated passenger (Task #42)
+ */
+export const streamPassengerRideEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const passengerId = req.user!.id;
+    const rideId = req.params.id || (req.query.rideId as string) || undefined;
+    const clientId = `p-${passengerId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    realtimeService.registerClient({
+      id: clientId,
+      role: 'PASSENGER',
+      userId: passengerId,
+      rideId,
+      res,
     });
   } catch (error) {
     next(error);

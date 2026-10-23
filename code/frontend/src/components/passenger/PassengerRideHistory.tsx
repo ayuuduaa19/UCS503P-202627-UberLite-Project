@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import type { Ride } from '../../types';
+import type { Ride, RideHistoryFilterParams, RideEventPayload } from '../../types';
 
 interface PassengerRideHistoryProps {
   onOpenFeedback: (rideId: string) => void;
@@ -17,7 +17,32 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchHistory = async () => {
+  // Task #41 – filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState<RideHistoryFilterParams['sortBy']>('date');
+  const [sortOrder, setSortOrder] = useState<RideHistoryFilterParams['sortOrder']>('desc');
+  const [minFare, setMinFare] = useState('');
+  const [maxFare, setMaxFare] = useState('');
+
+  // Task #42 – SSE ref
+  const sseRef = useRef<EventSource | null>(null);
+
+  const buildFilters = useCallback((): RideHistoryFilterParams => {
+    const f: RideHistoryFilterParams = {};
+    if (searchText.trim()) f.search = searchText.trim();
+    if (startDate) f.startDate = startDate;
+    if (endDate) f.endDate = endDate;
+    if (sortBy && sortBy !== 'date') f.sortBy = sortBy;
+    if (sortOrder && sortOrder !== 'desc') f.sortOrder = sortOrder;
+    if (minFare !== '') f.minFare = Number(minFare);
+    if (maxFare !== '') f.maxFare = Number(maxFare);
+    return f;
+  }, [searchText, startDate, endDate, sortBy, sortOrder, minFare, maxFare]);
+
+  const fetchHistory = useCallback(async () => {
     if (!isAuthenticated) {
       onOpenAuth();
       return;
@@ -25,7 +50,8 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const res = await apiClient.getPassengerRideHistory();
+      const filters = buildFilters();
+      const res = await apiClient.getPassengerRideHistory(filters);
       // Backend returns { data: { rides, count } } or { data: <rides[]> }
       const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
       setRides(rides);
@@ -37,7 +63,7 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isAuthenticated, onOpenAuth, buildFilters]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -45,6 +71,48 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  // Task #42 – Subscribe to real-time ride updates via SSE
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleRideEvent = (_payload: RideEventPayload) => {
+      // Auto-refresh history when a ride status changes
+      fetchHistory();
+    };
+
+    sseRef.current = apiClient.subscribeToPassengerRideEvents(
+      undefined,
+      handleRideEvent,
+    );
+
+    return () => {
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
+    };
+  }, [isAuthenticated, fetchHistory]);
+
+  const clearFilters = () => {
+    setSearchText('');
+    setStartDate('');
+    setEndDate('');
+    setSortBy('date');
+    setSortOrder('desc');
+    setMinFare('');
+    setMaxFare('');
+  };
+
+  const handleApplyFilters = () => {
+    fetchHistory();
+  };
+
+  const handleClearFilters = () => {
+    clearFilters();
+    // Fetch with no filters after clearing
+    setTimeout(() => fetchHistory(), 0);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -77,10 +145,108 @@ export const PassengerRideHistory: React.FC<PassengerRideHistoryProps> = ({
           <h2>Passenger Ride History</h2>
           <p className="text-muted">Review past trips, fares, driver info, and your feedback</p>
         </div>
-        <button className="btn btn-sm btn-outline" onClick={fetchHistory} disabled={isLoading}>
-          🔄 Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            className={`btn btn-sm ${showFilters ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            🔍 Filters
+          </button>
+          <button className="btn btn-sm btn-outline" onClick={fetchHistory} disabled={isLoading}>
+            🔄 Refresh
+          </button>
+        </div>
       </div>
+
+      {/* Task #41 – Filter Bar */}
+      {showFilters && (
+        <div className="history-filter-bar">
+          <div className="filter-row">
+            <input
+              type="text"
+              className="filter-input"
+              placeholder="Search address, driver name, plate…"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+          </div>
+          <div className="filter-row">
+            <label className="filter-label">
+              From
+              <input
+                type="date"
+                className="filter-input filter-date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </label>
+            <label className="filter-label">
+              To
+              <input
+                type="date"
+                className="filter-input filter-date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="filter-row">
+            <label className="filter-label">
+              Min ₹
+              <input
+                type="number"
+                className="filter-input filter-num"
+                placeholder="0"
+                value={minFare}
+                onChange={(e) => setMinFare(e.target.value)}
+                min="0"
+              />
+            </label>
+            <label className="filter-label">
+              Max ₹
+              <input
+                type="number"
+                className="filter-input filter-num"
+                placeholder="Any"
+                value={maxFare}
+                onChange={(e) => setMaxFare(e.target.value)}
+                min="0"
+              />
+            </label>
+            <label className="filter-label">
+              Sort
+              <select
+                className="filter-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as RideHistoryFilterParams['sortBy'])}
+              >
+                <option value="date">Date</option>
+                <option value="fare">Fare</option>
+                <option value="distance">Distance</option>
+              </select>
+            </label>
+            <label className="filter-label">
+              Order
+              <select
+                className="filter-select"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as RideHistoryFilterParams['sortOrder'])}
+              >
+                <option value="desc">Newest</option>
+                <option value="asc">Oldest</option>
+              </select>
+            </label>
+          </div>
+          <div className="filter-actions">
+            <button className="btn btn-xs btn-primary" onClick={handleApplyFilters}>
+              Apply
+            </button>
+            <button className="btn btn-xs btn-outline" onClick={handleClearFilters}>
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
 

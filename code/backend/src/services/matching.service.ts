@@ -12,6 +12,7 @@ import {
 } from '../utils/location';
 import { concurrencyCoordinator } from '../utils/concurrency';
 import { MatchingOptions } from '../validators/matching.validator';
+import { realtimeService } from './realtime.service';
 
 export interface CandidateDriver {
   driverId: string;
@@ -309,17 +310,26 @@ export class MatchingService {
         };
       };
 
+      let matchResult: MatchResult;
       if (typeof prisma.$transaction === 'function') {
         try {
-          return await prisma.$transaction(executeTx);
+          matchResult = await prisma.$transaction(executeTx);
         } catch (err: any) {
           if (err?.name === 'PrismaClientInitializationError') {
-            return await executeTx(prisma);
+            matchResult = await executeTx(prisma);
+          } else {
+            throw err;
           }
-          throw err;
         }
+      } else {
+        matchResult = await executeTx(prisma);
       }
-      return await executeTx(prisma);
+
+      if (matchResult?.ride) {
+        realtimeService.emitRideUpdate(matchResult.ride, RideStatus.MATCHED);
+      }
+
+      return matchResult;
     });
   }
 

@@ -1,4 +1,13 @@
-import type { ApiResponse, AuthResponse, DriverProfile, Ride, User, VehicleType } from '../types';
+import type {
+  ApiResponse,
+  AuthResponse,
+  DriverProfile,
+  Ride,
+  User,
+  VehicleType,
+  RideHistoryFilterParams,
+  RideEventPayload,
+} from '../types';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
@@ -166,8 +175,9 @@ class ApiClient {
     return this.get<{ ride: Ride | null }>('/api/passenger/rides/active');
   }
 
-  public async getPassengerRideHistory(): Promise<ApiResponse<Ride[]>> {
-    return this.get<Ride[]>('/api/passenger/rides/history');
+  public async getPassengerRideHistory(filters?: RideHistoryFilterParams): Promise<ApiResponse<Ride[]>> {
+    const query = this.buildFilterQuery(filters);
+    return this.get<Ride[]>(`/api/passenger/rides/history${query}`);
   }
 
   public async getRideDetails(rideId: string): Promise<ApiResponse<Ride>> {
@@ -245,12 +255,82 @@ class ApiClient {
     return this.get<{ ride: Ride | null }>('/api/driver/rides/active');
   }
 
-  public async getDriverRideHistory(): Promise<ApiResponse<Ride[]>> {
-    return this.get<Ride[]>('/api/driver/rides/history');
+  public async getDriverRideHistory(filters?: RideHistoryFilterParams): Promise<ApiResponse<Ride[]>> {
+    const query = this.buildFilterQuery(filters);
+    return this.get<Ride[]>(`/api/driver/rides/history${query}`);
   }
 
   public async getDriverFeedbacks(): Promise<ApiResponse<any[]>> {
     return this.get<any[]>('/api/driver/feedbacks');
+  }
+
+  // ─── Ride History Filter Query Builder (Task #41) ─────────────────────────
+  private buildFilterQuery(filters?: RideHistoryFilterParams): string {
+    if (!filters) return '';
+    const params = new URLSearchParams();
+    if (filters.search) params.set('search', filters.search);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.startDate) params.set('startDate', filters.startDate);
+    if (filters.endDate) params.set('endDate', filters.endDate);
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
+    if (filters.minFare !== undefined) params.set('minFare', String(filters.minFare));
+    if (filters.maxFare !== undefined) params.set('maxFare', String(filters.maxFare));
+    if (filters.vehicleType) params.set('vehicleType', filters.vehicleType);
+    if (filters.rating !== undefined) params.set('rating', String(filters.rating));
+    if (filters.sortBy) params.set('sortBy', filters.sortBy);
+    if (filters.sortOrder) params.set('sortOrder', filters.sortOrder);
+    if (filters.limit !== undefined) params.set('limit', String(filters.limit));
+    if (filters.offset !== undefined) params.set('offset', String(filters.offset));
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  }
+
+  // ─── Real-time SSE Subscriptions (Task #42) ──────────────────────────────
+  public subscribeToPassengerRideEvents(
+    rideId?: string,
+    onEvent?: (payload: RideEventPayload) => void,
+    onError?: (err: Event) => void,
+  ): EventSource | null {
+    return this.createSseConnection(
+      rideId ? `/api/passenger/rides/${rideId}/events` : '/api/passenger/rides/events',
+      onEvent,
+      onError,
+    );
+  }
+
+  public subscribeToDriverRideEvents(
+    onEvent?: (payload: RideEventPayload) => void,
+    onError?: (err: Event) => void,
+  ): EventSource | null {
+    return this.createSseConnection('/api/driver/rides/events', onEvent, onError);
+  }
+
+  private createSseConnection(
+    endpoint: string,
+    onEvent?: (payload: RideEventPayload) => void,
+    onError?: (err: Event) => void,
+  ): EventSource | null {
+    if (typeof EventSource === 'undefined') return null;
+    const token = this.getToken();
+    const sep = endpoint.includes('?') ? '&' : '?';
+    const url = `${this.baseUrl}${endpoint}${token ? `${sep}token=${encodeURIComponent(token)}` : ''}`;
+    const es = new EventSource(url);
+
+    if (onEvent) {
+      es.addEventListener('ride_update', (e: MessageEvent) => {
+        try {
+          const payload: RideEventPayload = JSON.parse(e.data);
+          onEvent(payload);
+        } catch { /* ignore parse errors */ }
+      });
+    }
+
+    if (onError) {
+      es.onerror = onError;
+    }
+
+    return es;
   }
 }
 
