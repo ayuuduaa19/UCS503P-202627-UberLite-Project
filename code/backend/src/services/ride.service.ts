@@ -231,7 +231,7 @@ export class RideService {
   async getPassengerRideHistory(
     passengerId: string,
     filterOrStatus?: RideStatus | RideHistoryFilterInput
-  ) {
+  ): Promise<any[]> {
     const filter: RideHistoryFilterInput =
       typeof filterOrStatus === 'string'
         ? { status: filterOrStatus as RideStatus }
@@ -367,7 +367,7 @@ export class RideService {
   async getDriverRideHistory(
     driverUserId: string,
     filterOrStatus?: RideStatus | RideHistoryFilterInput
-  ) {
+  ): Promise<any[]> {
     const filter: RideHistoryFilterInput =
       typeof filterOrStatus === 'string'
         ? { status: filterOrStatus as RideStatus }

@@ -120,20 +120,20 @@ describe('Task 42: Real-time Ride Status Updates & Synchronization', () => {
 
     // Target passenger should receive the event
     const passenger1Chunks = passengerRes1.getChunks();
-    const p1Events = passenger1Chunks.filter((c) => c.includes('event: ride_update'));
+    const p1Events = passenger1Chunks.filter((c: string) => c.includes('event: ride_update'));
     assert.strictEqual(p1Events.length, 1);
     assert.ok(p1Events[0].includes(RideStatus.ACCEPTED));
     assert.ok(p1Events[0].includes('ride-sync-100'));
 
     // Target driver should receive the event
     const driverChunks = driverRes.getChunks();
-    const driverEvents = driverChunks.filter((c) => c.includes('event: ride_update'));
+    const driverEvents = driverChunks.filter((c: string) => c.includes('event: ride_update'));
     assert.strictEqual(driverEvents.length, 1);
     assert.ok(driverEvents[0].includes(RideStatus.ACCEPTED));
 
     // Unrelated passenger should NOT receive the event
     const passenger2Chunks = passengerRes2.getChunks();
-    const p2Events = passenger2Chunks.filter((c) => c.includes('event: ride_update'));
+    const p2Events = passenger2Chunks.filter((c: string) => c.includes('event: ride_update'));
     assert.strictEqual(p2Events.length, 0);
 
     // Cleanup
@@ -160,7 +160,7 @@ describe('Task 42: Real-time Ride Status Updates & Synchronization', () => {
 
     assert.strictEqual(
       realtimeService.getClientCount() === 0 ||
-        !res.getChunks().some((c) => c.includes('stale')),
+        !res.getChunks().some((c: string) => c.includes('stale')),
       true
     );
   });
@@ -177,7 +177,7 @@ describe('Task 42: Real-time Ride Status Updates & Synchronization', () => {
 
     assert.strictEqual(res.getStatusCode(), 200);
     assert.strictEqual(res.getHeaders()['Content-Type'], 'text/event-stream');
-    assert.ok(res.getChunks().some((c) => c.includes('event: connected')));
+    assert.ok(res.getChunks().some((c: string) => c.includes('event: connected')));
 
     res.emit('close');
   });
@@ -194,7 +194,7 @@ describe('Task 42: Real-time Ride Status Updates & Synchronization', () => {
 
     assert.strictEqual(res.getStatusCode(), 200);
     assert.strictEqual(res.getHeaders()['Content-Type'], 'text/event-stream');
-    assert.ok(res.getChunks().some((c) => c.includes('event: connected')));
+    assert.ok(res.getChunks().some((c: string) => c.includes('event: connected')));
 
     res.emit('close');
   });
