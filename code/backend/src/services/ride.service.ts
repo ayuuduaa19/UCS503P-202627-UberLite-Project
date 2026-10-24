@@ -1,6 +1,7 @@
 import { RideStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { calculateDistance, estimateTravelTimeMinutes } from '../utils/location';
 import { CreateRideInput } from '../validators/ride.validator';
 
 export class RideService {
@@ -59,7 +60,10 @@ export class RideService {
             vehicleModel: true,
             vehiclePlate: true,
             vehicleColor: true,
+            currentLat: true,
+            currentLng: true,
             rating: true,
+            updatedAt: true,
             user: {
               select: {
                 id: true,
@@ -155,7 +159,19 @@ export class RideService {
             vehicleType: true,
             vehicleModel: true,
             vehiclePlate: true,
+            vehicleColor: true,
+            currentLat: true,
+            currentLng: true,
             rating: true,
+            updatedAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
           },
         },
         fare: true,
@@ -167,6 +183,51 @@ export class RideService {
     }
 
     return ride;
+  }
+
+  /**
+   * Task 43: Get real-time ride tracking telemetry using periodic driver location updates
+   */
+  async getRideTracking(rideId: string, requestingPassengerId?: string) {
+    const ride = await this.getRideById(rideId);
+
+    if (requestingPassengerId && ride.passengerId !== requestingPassengerId) {
+      throw new AppError('Unauthorized: Ride belongs to a different passenger', 403);
+    }
+
+    let trackingData = null;
+    const driverAny = ride.driver as any;
+    if (driverAny && driverAny.currentLat != null && driverAny.currentLng != null) {
+      const driverCoords = { lat: driverAny.currentLat, lng: driverAny.currentLng };
+
+      // Determine current destination based on ride status:
+      // MATCHED / ACCEPTED -> Driver heading to Pickup
+      // IN_PROGRESS -> Driver heading to Dropoff
+      const isHeadingToPickup = ride.status === RideStatus.MATCHED || ride.status === RideStatus.ACCEPTED;
+      const targetCoords = isHeadingToPickup
+        ? { lat: ride.pickupLat, lng: ride.pickupLng }
+        : { lat: ride.dropoffLat, lng: ride.dropoffLng };
+      const targetAddress = isHeadingToPickup ? ride.pickupAddress : ride.dropoffAddress;
+      const targetType = isHeadingToPickup ? 'PICKUP' : 'DROPOFF';
+
+      const distanceToTargetKm = calculateDistance(driverCoords, targetCoords, { unit: 'km', decimals: 2 });
+      const estimatedArrivalMin = estimateTravelTimeMinutes(distanceToTargetKm, 30, 1);
+
+      trackingData = {
+        driverDistanceToTargetKm: distanceToTargetKm,
+        estimatedArrivalMin,
+        targetType,
+        targetAddress,
+        targetCoords,
+        driverCurrentLocation: driverCoords,
+        lastDriverLocationUpdate: driverAny.updatedAt || new Date(),
+      };
+    }
+
+    return {
+      ride,
+      tracking: trackingData,
+    };
   }
 
   /**

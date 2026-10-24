@@ -33,6 +33,17 @@ export interface DriverProfile {
   currentLat?: number | null;
   currentLng?: number | null;
   rating: number;
+  updatedAt?: string;
+}
+
+export interface RideTrackingInfo {
+  driverDistanceToTargetKm: number;
+  estimatedArrivalMin: number;
+  targetType: 'PICKUP' | 'DROPOFF';
+  targetAddress: string;
+  targetCoords: { lat: number; lng: number };
+  driverCurrentLocation: { lat: number; lng: number };
+  lastDriverLocationUpdate: string | Date;
 }
 
 export interface Fare {

@@ -7,6 +7,7 @@ import {
   getPassengerRideHistory,
   requestRide,
   getRideDetails,
+  getRideTracking,
   matchRideWithDriver,
   assignRideDriver,
   getNearbyDrivers,
@@ -26,6 +27,7 @@ router.get('/rides/history', getPassengerRideHistory);
 router.get('/rides', getPassengerRides);
 router.post('/rides', requestRide);
 router.get('/rides/:id', getRideDetails);
+router.get('/rides/:id/track', getRideTracking);
 
 // Feedback and rating endpoints (Task #20)
 router.post('/rides/:id/feedback', submitRideFeedback);
