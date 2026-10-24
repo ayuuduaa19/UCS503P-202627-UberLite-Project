@@ -129,6 +129,23 @@ export class DriverService {
   }
 
   /**
+   * Task 43: Update driver periodic location telemetry with timestamp confirmation
+   */
+  async updatePeriodicLocation(
+    userId: string,
+    lat: number,
+    lng: number
+  ) {
+    const updated = await this.updateLocation(userId, lat, lng);
+    return {
+      driver: updated,
+      recordedAt: updated.updatedAt,
+      currentLat: updated.currentLat,
+      currentLng: updated.currentLng,
+    };
+  }
+
+  /**
    * Update both availability and/or current location
    */
   async updateStatus(userId: string, input: UpdateDriverStatusInput) {

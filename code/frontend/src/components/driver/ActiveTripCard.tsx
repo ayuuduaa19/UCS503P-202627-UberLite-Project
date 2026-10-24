@@ -44,6 +44,27 @@ export const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
     };
   }, [ride.status]);
 
+  // Task 43: Periodic driver location telemetry updates during active in-progress trip
+  useEffect(() => {
+    if (ride.status !== 'IN_PROGRESS') return;
+
+    let step = 0;
+    const progressInterval = setInterval(() => {
+      step += 1;
+      const progressFraction = Math.min(step * 0.05, 0.95);
+      const intermediateLat = parseFloat(
+        (ride.pickupLat + (ride.dropoffLat - ride.pickupLat) * progressFraction).toFixed(5)
+      );
+      const intermediateLng = parseFloat(
+        (ride.pickupLng + (ride.dropoffLng - ride.pickupLng) * progressFraction).toFixed(5)
+      );
+
+      apiClient.updateDriverLocation(intermediateLat, intermediateLng).catch(() => {});
+    }, 6000);
+
+    return () => clearInterval(progressInterval);
+  }, [ride.status, ride.pickupLat, ride.pickupLng, ride.dropoffLat, ride.dropoffLng]);
+
   const handleStartTrip = async () => {
     setIsProcessing(true);
     setStatusMessage(null);

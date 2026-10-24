@@ -29,6 +29,7 @@ export interface CandidateDriver {
   currentLng: number;
   distanceKm: number;
   estimatedArrivalMin: number;
+  lastLocationUpdate?: Date | null;
 }
 
 export interface MatchResult {
@@ -126,14 +127,20 @@ export class MatchingService {
           currentLng: driver.currentLng,
           distanceKm,
           estimatedArrivalMin,
+          lastLocationUpdate: driver.updatedAt ?? null,
         });
       }
     }
 
-    // Sort ascending by distance, breaking ties with higher rating
+    // Sort ascending by distance; if distances are tied, prioritize drivers with fresher periodic location updates, then rating
     candidates.sort((a, b) => {
-      if (a.distanceKm !== b.distanceKm) {
+      if (Math.abs(a.distanceKm - b.distanceKm) > 0.001) {
         return a.distanceKm - b.distanceKm;
+      }
+      const timeA = a.lastLocationUpdate ? new Date(a.lastLocationUpdate).getTime() : 0;
+      const timeB = b.lastLocationUpdate ? new Date(b.lastLocationUpdate).getTime() : 0;
+      if (timeA !== timeB) {
+        return timeB - timeA;
       }
       return b.rating - a.rating;
     });
@@ -478,6 +485,7 @@ export class MatchingService {
       currentLng: driver.currentLng!,
       distanceKm,
       estimatedArrivalMin,
+      lastLocationUpdate: driver.updatedAt ?? null,
     };
 
     return await this.executeDriverAssignmentTx(ride.id, candidateInfo, authenticatedPassengerId);

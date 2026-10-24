@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { Role } from '@prisma/client';
+import { Role, RideStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { authorize } from '../middleware/auth.middleware';
@@ -10,6 +10,8 @@ import {
   updateDriverStatusSchema,
 } from '../validators/driver.validator';
 import { driverService } from '../services/driver.service';
+import { rideService } from '../services/ride.service';
+import { matchingService } from '../services/matching.service';
 import {
   getDriverAvailability,
   updateAvailability,
@@ -17,6 +19,7 @@ import {
   updateLocation,
   updateDriverStatus,
 } from '../controllers/driver.controller';
+import { getRideTracking } from '../controllers/passenger.controller';
 
 // Helper to create mock Express response object
 const createMockResponse = () => {
@@ -541,6 +544,232 @@ describe('Driver Availability and Location Management', () => {
         if (!err) allowed = true;
       });
       assert.strictEqual(allowed, true);
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // Task 43: Periodic Driver Location Updates, Live Tracking & Matching Optimization
+  // ═════════════════════════════════════════════════════════════════════════
+  describe('Task 43: Periodic Driver Location Updates & Live Ride Tracking', () => {
+    it('should update periodic driver location telemetry and confirm timestamp', async () => {
+      const originalFindUnique = prisma.driver.findUnique;
+      const originalUpdate = prisma.driver.update;
+      const now = new Date();
+
+      prisma.driver.findUnique = (async () => ({
+        id: 'd-periodic-1',
+        userId: 'u-driver-1',
+        currentLat: 28.6139,
+        currentLng: 77.209,
+      })) as any;
+
+      prisma.driver.update = (async (args: any) => ({
+        id: 'd-periodic-1',
+        userId: 'u-driver-1',
+        currentLat: args.data.currentLat,
+        currentLng: args.data.currentLng,
+        isAvailable: true,
+        updatedAt: now,
+      })) as any;
+
+      try {
+        const result = await driverService.updatePeriodicLocation('u-driver-1', 28.625, 77.218);
+        assert.strictEqual(result.currentLat, 28.625);
+        assert.strictEqual(result.currentLng, 77.218);
+        assert.strictEqual(result.recordedAt, now);
+        assert.strictEqual(result.driver.id, 'd-periodic-1');
+      } finally {
+        prisma.driver.findUnique = originalFindUnique;
+        prisma.driver.update = originalUpdate;
+      }
+    });
+
+    it('should compute real-time ride tracking telemetry when driver is heading to pickup', async () => {
+      const originalFindUnique = prisma.ride.findUnique;
+      const driverUpdatedAt = new Date('2026-10-24T09:00:00Z');
+
+      prisma.ride.findUnique = (async () => ({
+        id: 'r-track-1',
+        passengerId: 'p-1',
+        driverId: 'd-1',
+        pickupLat: 28.6315,
+        pickupLng: 77.2167,
+        pickupAddress: 'Connaught Place',
+        dropoffLat: 28.4952,
+        dropoffLng: 77.0895,
+        dropoffAddress: 'Cyber City',
+        status: RideStatus.ACCEPTED,
+        distanceKm: 20.0,
+        durationMin: 35.0,
+        driver: {
+          id: 'd-1',
+          vehicleModel: 'Honda City',
+          vehiclePlate: 'DL-01-AB-1234',
+          vehicleColor: 'Silver',
+          vehicleType: VehicleType.STANDARD,
+          rating: 4.9,
+          currentLat: 28.6200, // ~1.3 km away from pickup
+          currentLng: 77.2150,
+          updatedAt: driverUpdatedAt,
+          user: { name: 'Rajesh Driver', phone: '+919876543210' },
+        },
+        passenger: { id: 'p-1', name: 'Passenger One' },
+        fare: null,
+      })) as any;
+
+      try {
+        const res = await rideService.getRideTracking('r-track-1', 'p-1');
+        assert.strictEqual(res.ride.id, 'r-track-1');
+        assert.ok(res.tracking, 'Tracking data should be populated');
+        assert.strictEqual(res.tracking.targetType, 'PICKUP');
+        assert.strictEqual(res.tracking.targetAddress, 'Connaught Place');
+        assert.ok(res.tracking.driverDistanceToTargetKm > 1.0 && res.tracking.driverDistanceToTargetKm < 2.0);
+        assert.ok(res.tracking.estimatedArrivalMin > 0);
+        assert.strictEqual(res.tracking.driverCurrentLocation.lat, 28.6200);
+      } finally {
+        prisma.ride.findUnique = originalFindUnique;
+      }
+    });
+
+    it('should compute real-time ride tracking telemetry towards dropoff during IN_PROGRESS trip', async () => {
+      const originalFindUnique = prisma.ride.findUnique;
+
+      prisma.ride.findUnique = (async () => ({
+        id: 'r-track-progress',
+        passengerId: 'p-1',
+        driverId: 'd-1',
+        pickupLat: 28.6315,
+        pickupLng: 77.2167,
+        pickupAddress: 'Connaught Place',
+        dropoffLat: 28.4952,
+        dropoffLng: 77.0895,
+        dropoffAddress: 'Cyber City',
+        status: RideStatus.IN_PROGRESS,
+        distanceKm: 20.0,
+        driver: {
+          id: 'd-1',
+          vehicleModel: 'Honda City',
+          vehiclePlate: 'DL-01-AB-1234',
+          rating: 4.9,
+          currentLat: 28.5200, // closer to dropoff
+          currentLng: 77.1000,
+          updatedAt: new Date(),
+          user: { name: 'Rajesh Driver', phone: '+919876543210' },
+        },
+        passenger: { id: 'p-1' },
+      })) as any;
+
+      try {
+        const res = await rideService.getRideTracking('r-track-progress', 'p-1');
+        assert.strictEqual(res.tracking?.targetType, 'DROPOFF');
+        assert.strictEqual(res.tracking?.targetAddress, 'Cyber City');
+        assert.ok(res.tracking!.driverDistanceToTargetKm > 0);
+      } finally {
+        prisma.ride.findUnique = originalFindUnique;
+      }
+    });
+
+    it('should reject ride tracking for unauthorized passengers', async () => {
+      const originalFindUnique = prisma.ride.findUnique;
+
+      prisma.ride.findUnique = (async () => ({
+        id: 'r-unauth',
+        passengerId: 'p-owner',
+        status: RideStatus.ACCEPTED,
+        driver: { id: 'd-1', currentLat: 28.6, currentLng: 77.2 },
+      })) as any;
+
+      try {
+        await assert.rejects(
+          async () => {
+            await rideService.getRideTracking('r-unauth', 'p-intruder');
+          },
+          (err: any) => {
+            assert.ok(err instanceof AppError);
+            assert.strictEqual(err.statusCode, 403);
+            return true;
+          }
+        );
+      } finally {
+        prisma.ride.findUnique = originalFindUnique;
+      }
+    });
+
+    it('should optimize driver matching by prioritizing drivers with fresher location updates on distance tie', async () => {
+      const originalFindMany = prisma.driver.findMany;
+      const pickup = { lat: 28.6315, lng: 77.2167 };
+      const staleTime = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+      const freshTime = new Date(Date.now() - 5 * 1000); // 5 seconds ago
+
+      prisma.driver.findMany = (async () => [
+        {
+          id: 'd-stale',
+          userId: 'u-stale',
+          isAvailable: true,
+          currentLat: 28.6315, // exactly at pickup (0 km)
+          currentLng: 77.2167,
+          rating: 4.8,
+          licenseNumber: 'DL-STALE',
+          vehicleType: VehicleType.STANDARD,
+          vehicleModel: 'Maruti Dzire',
+          vehiclePlate: 'DL-01-ST-0001',
+          vehicleColor: 'White',
+          updatedAt: staleTime,
+          user: { name: 'Stale Driver', phone: '1111' },
+        },
+        {
+          id: 'd-fresh',
+          userId: 'u-fresh',
+          isAvailable: true,
+          currentLat: 28.6315, // identical distance (0 km)
+          currentLng: 77.2167,
+          rating: 4.8,
+          licenseNumber: 'DL-FRESH',
+          vehicleType: VehicleType.STANDARD,
+          vehicleModel: 'Hyundai Aura',
+          vehiclePlate: 'DL-01-FR-0002',
+          vehicleColor: 'Silver',
+          updatedAt: freshTime,
+          user: { name: 'Fresh Driver', phone: '2222' },
+        },
+      ]) as any;
+
+      try {
+        const candidates = await matchingService.findAvailableDrivers(pickup);
+        assert.strictEqual(candidates.length, 2);
+        // The driver with the more recent periodic location update must be sorted first!
+        assert.strictEqual(candidates[0].driverId, 'd-fresh');
+        assert.strictEqual(candidates[1].driverId, 'd-stale');
+      } finally {
+        prisma.driver.findMany = originalFindMany;
+      }
+    });
+
+    it('GET /api/passenger/rides/:id/track controller should return tracking data', async () => {
+      const originalGetTracking = rideService.getRideTracking;
+      rideService.getRideTracking = async () => ({
+        ride: { id: 'r-api-track' } as any,
+        tracking: {
+          driverDistanceToTargetKm: 1.5,
+          estimatedArrivalMin: 4,
+          targetType: 'PICKUP',
+        } as any,
+      });
+
+      const req: any = {
+        params: { id: 'r-api-track' },
+        user: { id: 'p-1', role: Role.PASSENGER },
+      };
+      const res = createMockResponse();
+
+      try {
+        await getRideTracking(req, res, () => {});
+        assert.strictEqual(res.statusCode, 200);
+        assert.strictEqual(res.body.success, true);
+        assert.strictEqual(res.body.data.tracking.driverDistanceToTargetKm, 1.5);
+      } finally {
+        rideService.getRideTracking = originalGetTracking;
+      }
     });
   });
 });

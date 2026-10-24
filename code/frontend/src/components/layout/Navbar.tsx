@@ -30,14 +30,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
             onClick={() => navigate('/passenger')}
           >
             <span className="nav-icon">👤</span>
-            Passenger Area
+            <span className="nav-text-desktop">Passenger Area</span>
+            <span className="nav-text-mobile">Passenger</span>
           </button>
           <button
             className={`nav-item ${isDriverView ? 'active' : ''}`}
             onClick={() => navigate('/driver')}
           >
             <span className="nav-icon">🚗</span>
-            Driver Area
+            <span className="nav-text-desktop">Driver Area</span>
+            <span className="nav-text-mobile">Driver</span>
           </button>
         </nav>
 

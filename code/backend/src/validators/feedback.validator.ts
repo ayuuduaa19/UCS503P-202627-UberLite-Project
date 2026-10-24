@@ -57,4 +57,8 @@ export const rideHistoryQuerySchema = z.object({
 
 export type RideHistoryQuery = z.infer<typeof rideHistoryQuerySchema>;
 export const rideHistoryFilterSchema = rideHistoryQuerySchema;
-export type RideHistoryFilterInput = RideHistoryQuery;
+export type RideHistoryFilterInput = Partial<RideHistoryQuery> & {
+  startDate?: string;
+  endDate?: string;
+};
+

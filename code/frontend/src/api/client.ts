@@ -184,6 +184,10 @@ class ApiClient {
     return this.get<Ride>(`/api/passenger/rides/${rideId}`);
   }
 
+  public async getRideTracking(rideId: string): Promise<ApiResponse<any>> {
+    return this.get<any>(`/api/passenger/rides/${rideId}/track`);
+  }
+
   public async matchRide(rideId: string): Promise<ApiResponse<Ride>> {
     return this.post<Ride>(`/api/passenger/rides/${rideId}/match`);
   }

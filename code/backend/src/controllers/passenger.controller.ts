@@ -265,6 +265,24 @@ export const getRideDetails = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
+ * Task 43: Get real-time ride tracking telemetry using periodic driver location updates
+ */
+export const getRideTracking = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const passengerId = req.user!.id;
+    const trackingInfo = await rideService.getRideTracking(id, passengerId);
+
+    return res.status(200).json({
+      success: true,
+      data: trackingInfo,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Find and match the nearest available driver to an existing ride
  */
 export const matchRideWithDriver = async (req: Request, res: Response, next: NextFunction) => {
