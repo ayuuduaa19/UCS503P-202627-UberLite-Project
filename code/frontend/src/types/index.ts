@@ -126,3 +126,27 @@ export interface ApiResponse<T = any> {
     details?: any;
   };
 }
+
+export interface RideHistoryFilterParams {
+  search?: string;
+  status?: RideStatus;
+  startDate?: string;
+  endDate?: string;
+  from?: string;
+  to?: string;
+  minFare?: number;
+  maxFare?: number;
+  vehicleType?: VehicleType;
+  rating?: number;
+  sortBy?: 'date' | 'fare' | 'distance' | 'createdAt' | 'totalFare' | 'distanceKm';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface RideEventPayload {
+  eventType: string;
+  ride: Ride;
+  timestamp: string;
+}
+

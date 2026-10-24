@@ -5,6 +5,8 @@ import {
   getPassengerProfile,
   getPassengerRides,
   getPassengerRideHistory,
+  streamPassengerRideEvents,
+  getActiveRide,
   requestRide,
   getRideDetails,
   getRideTracking,
@@ -22,8 +24,13 @@ router.use(authenticate, authorize(Role.PASSENGER));
 
 router.get('/profile', getPassengerProfile);
 
-// Ride history endpoints (Task #19)
+// Real-time ride status synchronization stream (Task #42)
+router.get('/rides/events', streamPassengerRideEvents);
+router.get('/rides/:id/events', streamPassengerRideEvents);
+
+// Ride history & active ride endpoints (Task #19 & #40 & #41)
 router.get('/rides/history', getPassengerRideHistory);
+router.get('/rides/active', getActiveRide);
 router.get('/rides', getPassengerRides);
 router.post('/rides', requestRide);
 router.get('/rides/:id', getRideDetails);

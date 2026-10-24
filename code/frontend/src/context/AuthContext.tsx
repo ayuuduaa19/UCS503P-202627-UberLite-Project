@@ -77,12 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }) => {
     setIsLoading(true);
     try {
-      const res = await apiClient.register(payload);
-      if (res.data) {
-        setUser(res.data.user);
-        setDriver(res.data.driver || null);
-        setToken(res.data.token);
-      }
+      await apiClient.register(payload);
+      // Auto-login to obtain session token and driver profile
+      await login(payload.email, payload.password);
     } catch (err) {
       setIsLoading(false);
       throw err;

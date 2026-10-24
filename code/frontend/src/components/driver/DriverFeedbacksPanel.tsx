@@ -19,7 +19,9 @@ export const DriverFeedbacksPanel: React.FC<DriverFeedbacksPanelProps> = ({ onOp
     try {
       const res = await apiClient.getDriverFeedbacks();
       if (res.data) {
-        setFeedbacks(res.data as Feedback[]);
+        const list: Feedback[] =
+          (res.data as any)?.feedbacks ?? (Array.isArray(res.data) ? res.data : []);
+        setFeedbacks(list);
       }
     } catch (err: any) {
       if (err.statusCode === 401) {
@@ -39,9 +41,10 @@ export const DriverFeedbacksPanel: React.FC<DriverFeedbacksPanelProps> = ({ onOp
     }
   }, [isAuthenticated]);
 
+  const safeFeedbacks = Array.isArray(feedbacks) ? feedbacks : [];
   const avgRating =
-    feedbacks.length > 0
-      ? feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length
+    safeFeedbacks.length > 0
+      ? safeFeedbacks.reduce((sum, f) => sum + f.rating, 0) / safeFeedbacks.length
       : null;
 
   const ratingLabel = (r: number) => {

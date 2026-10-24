@@ -13,7 +13,12 @@ import {
 import { estimateFareFromLocationsSchema } from '../validators/fare.validator';
 
 import { feedbackService } from '../services/feedback.service';
-import { createFeedbackSchema, rideHistoryQuerySchema } from '../validators/feedback.validator';
+import { realtimeService } from '../services/realtime.service';
+import {
+  createFeedbackSchema,
+  rideHistoryQuerySchema,
+  rideHistoryFilterSchema,
+} from '../validators/feedback.validator';
 import { idParamSchema, rideFilterQuerySchema } from '../validators/common.validator';
 
 /**
@@ -71,20 +76,42 @@ export const getPassengerRides = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * Get completed ride history for the authenticated passenger (Task #19)
+ * Get completed ride history for the authenticated passenger with filtering & search (Task #19 & #41)
  */
 export const getPassengerRideHistory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
-    const parsedQuery = rideHistoryQuerySchema.parse(req.query || {});
-    const rides = await rideService.getPassengerRideHistory(passengerId, parsedQuery.status);
+    const parsedQuery = rideHistoryFilterSchema.parse(req.query || {});
+    const rides = await rideService.getPassengerRideHistory(passengerId, parsedQuery);
 
     return res.status(200).json({
       success: true,
       data: {
         rides,
         count: rides.length,
+        filters: parsedQuery,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Stream real-time ride status events for the authenticated passenger (Task #42)
+ */
+export const streamPassengerRideEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const passengerId = req.user!.id;
+    const rideId = req.params.id || (req.query.rideId as string) || undefined;
+    const clientId = `p-${passengerId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    realtimeService.registerClient({
+      id: clientId,
+      role: 'PASSENGER',
+      userId: passengerId,
+      rideId,
+      res,
     });
   } catch (error) {
     next(error);
@@ -141,23 +168,39 @@ export const getRideFeedback = async (req: Request, res: Response, next: NextFun
 
 
 /**
+ * Get active ride for the authenticated passenger (Task 40)
+ */
+export const getActiveRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const passengerId = req.user!.id;
+    const activeRide = await rideService.getActiveRideForPassenger(passengerId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ride: activeRide,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Request a ride for the authenticated passenger.
  *
- * Flow (Task 13):
- *  1. Validate input and create the ride record with status REQUESTED.
- *  2. Run the driver-matching algorithm to find the nearest available driver.
- *  3. If a driver is found:
- *       a. Update the ride with the matched driverId and status MATCHED.
- *          The `updatedAt` timestamp acts as the assignment timestamp.
- *       b. Mark the driver as unavailable to prevent double-booking.
- *  4. Return the final ride state (with driver info when matched).
+ * Flow:
+ *  1. Validate input and coordinate active rides (reject if active ride exists).
+ *  2. Create the ride record with status REQUESTED.
+ *  3. Search for available drivers with location-based search and concurrent retry.
+ *  4. Return the final ride state.
  */
 export const requestRide = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const passengerId = req.user!.id;
     const validatedData = createRideSchema.parse(req.body);
 
-    // Step 1: Persist the initial ride record via rideService.
+    // Step 1: Persist the initial ride record via rideService with active ride coordination.
     const ride = await rideService.createRide(passengerId, validatedData);
 
     // Step 2: Search for the best available driver via the matching module.

@@ -14,18 +14,21 @@ export const PassengerDashboardStats: React.FC = () => {
     apiClient
       .getPassengerRideHistory()
       .then((res) => {
-        if (res.data) setRides(res.data);
+        const ridesList: Ride[] =
+          (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
+        setRides(ridesList);
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
   }, [isAuthenticated]);
 
-  const completedRides = rides.filter((r) => r.status === 'COMPLETED');
+  const safeRides = Array.isArray(rides) ? rides : [];
+  const completedRides = safeRides.filter((r) => r.status === 'COMPLETED');
   const totalSpend = completedRides.reduce(
     (sum, r) => sum + (r.fare?.totalFare ?? 0),
     0,
   );
-  const activeRide = rides.find(
+  const activeRide = safeRides.find(
     (r) => r.status === 'REQUESTED' || r.status === 'MATCHED' || r.status === 'ACCEPTED' || r.status === 'IN_PROGRESS',
   );
 

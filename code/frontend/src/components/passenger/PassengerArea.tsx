@@ -18,23 +18,26 @@ const ACTIVE_STATUSES = new Set<string>(['REQUESTED', 'MATCHED', 'ACCEPTED', 'IN
 const POLL_INTERVAL_MS = 5000;
 
 export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
-  const { activeTab } = useRouter();
+  const { activeTab, setActiveTab } = useRouter();
   const { isAuthenticated } = useAuth();
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [feedbackRideId, setFeedbackRideId] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /** Fetch active ride on initial load or auth change */
+  /** Fetch active ride on initial load or auth change (Task 40 coordination) */
   const fetchActiveRide = async () => {
     if (!isAuthenticated) return;
     try {
+      const activeRes = await apiClient.getPassengerActiveRide().catch(() => null);
+      if (activeRes?.data?.ride) {
+        setActiveRide(activeRes.data.ride);
+        return;
+      }
       const res = await apiClient.getPassengerRides();
       const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
       const active = rides.find((r) => ACTIVE_STATUSES.has(r.status));
-      if (active) {
-        setActiveRide(active);
-      }
+      setActiveRide(active ?? null);
     } catch {
       // Ignore network error on initial load
     }
@@ -99,6 +102,14 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
 
   const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
+    // Switch to the Active Ride tab so the user can see their ride status
+    setActiveTab('active');
+    const msg =
+      ride.status === 'MATCHED'
+        ? '🚗 Driver matched! Your ride is confirmed.'
+        : '✅ Ride requested! Searching for a nearby driver...';
+    setSuccessBanner(msg);
+    setTimeout(() => setSuccessBanner(null), 6000);
   };
 
   const handleRefreshRide = () => {
@@ -126,7 +137,7 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
       )}
 
       {/* Dynamic Tab Switch View */}
-      {activeTab === 'book' && (
+      {(activeTab === 'book' || !['active', 'history', 'fare'].includes(activeTab)) && (
         <div className="passenger-grid">
           <RideBookingCard onRideCreated={handleRideCreated} onOpenAuth={onOpenAuth} />
           {activeRide && (

@@ -1933,3 +1933,102 @@
   }
 }
 
+/* ─── Task 41: Ride History Filter Bar ──────────────────────────────────── */
+.history-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  animation: filter-slide-in 0.25s ease-out;
+}
+
+@keyframes filter-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.filter-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 2px rgba(0, 220, 130, 0.15);
+}
+
+.filter-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.filter-date {
+  min-width: 120px;
+  max-width: 150px;
+}
+
+.filter-num {
+  min-width: 70px;
+  max-width: 100px;
+}
+
+.filter-select {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  min-width: 90px;
+  transition: border-color 0.2s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--accent-green);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border-subtle);
+}

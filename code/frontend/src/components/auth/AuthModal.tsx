@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useRouter } from '../../context/RouterContext';
+import { apiClient } from '../../api/client';
 import type { VehicleType } from '../../types';
 
 interface AuthModalProps {
@@ -9,6 +11,7 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const { login, register, setDemoUser } = useAuth();
+  const { navigate, setActiveTab } = useRouter();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [role, setRole] = useState<'PASSENGER' | 'DRIVER'>('PASSENGER');
 
@@ -34,8 +37,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setErrorMessage(null);
 
     try {
+      let resolvedRole: 'PASSENGER' | 'DRIVER' = role;
       if (tab === 'login') {
         await login(email, password);
+        const stored = apiClient.getStoredUser();
+        if (stored?.user?.role) {
+          resolvedRole = stored.user.role as 'PASSENGER' | 'DRIVER';
+        }
       } else {
         await register({
           email,
@@ -50,6 +58,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           vehicleColor: role === 'DRIVER' ? vehicleColor : undefined,
         });
       }
+
+      if (resolvedRole === 'DRIVER') {
+        navigate('/driver');
+        setActiveTab('status');
+      } else {
+        navigate('/passenger');
+        setActiveTab('book');
+      }
       onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication failed');
@@ -60,6 +76,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleQuickDemo = (demoRole: 'PASSENGER' | 'DRIVER') => {
     setDemoUser(demoRole);
+    if (demoRole === 'DRIVER') {
+      navigate('/driver');
+      setActiveTab('status');
+    } else {
+      navigate('/passenger');
+      setActiveTab('book');
+    }
     onClose();
   };
 

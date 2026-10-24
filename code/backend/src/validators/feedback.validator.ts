@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RideStatus } from '@prisma/client';
+import { RideStatus, VehicleType } from '@prisma/client';
 
 export const createFeedbackSchema = z.object({
   rating: z
@@ -22,14 +22,39 @@ export const rideHistoryQuerySchema = z.object({
     .nativeEnum(RideStatus)
     .optional()
     .default(RideStatus.COMPLETED),
+  search: z.string().trim().optional(),
+  from: z.string().trim().optional(),
+  to: z.string().trim().optional(),
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
+  minFare: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((val) => (val !== undefined && val !== '' ? Number(val) : undefined)),
+  maxFare: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((val) => (val !== undefined && val !== '' ? Number(val) : undefined)),
+  vehicleType: z.nativeEnum(VehicleType).optional(),
+  rating: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((val) => (val !== undefined && val !== '' ? Number(val) : undefined)),
+  sortBy: z
+    .enum(['date', 'createdAt', 'fare', 'totalFare', 'distance', 'distanceKm'])
+    .optional()
+    .default('date'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   limit: z
-    .string()
+    .union([z.string(), z.number()])
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+    .transform((val) => (val !== undefined && val !== '' ? Number(val) : undefined)),
   offset: z
-    .string()
+    .union([z.string(), z.number()])
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+    .transform((val) => (val !== undefined && val !== '' ? Number(val) : undefined)),
 });
 
 export type RideHistoryQuery = z.infer<typeof rideHistoryQuerySchema>;
+export const rideHistoryFilterSchema = rideHistoryQuerySchema;
+export type RideHistoryFilterInput = RideHistoryQuery;

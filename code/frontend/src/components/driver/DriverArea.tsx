@@ -32,6 +32,20 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
   const pollDriverRides = async () => {
     if (!isAuthenticated) return;
     try {
+      const activeRes = await apiClient.getDriverActiveRide().catch(() => null);
+      if (activeRes?.data?.ride) {
+        const active = activeRes.data.ride;
+        setIsPollError(false);
+        if (active.status === 'MATCHED') {
+          setIncomingRide(active);
+          setActiveTrip(null);
+        } else {
+          setIncomingRide(null);
+          setActiveTrip(active);
+        }
+        return;
+      }
+
       const res = await apiClient.getDriverRides();
       const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
       setIsPollError(false);
@@ -109,7 +123,7 @@ export const DriverArea: React.FC<DriverAreaProps> = ({ onOpenAuth }) => {
 
   return (
     <div className="driver-area-container">
-      {activeTab === 'status' && (
+      {(activeTab === 'status' || !['active', 'history', 'feedbacks'].includes(activeTab)) && (
         <div className="driver-grid">
           <DriverStatusCard />
 

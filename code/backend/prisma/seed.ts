@@ -1,17 +1,24 @@
 import { PrismaClient, Role, VehicleType } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const SALT_ROUNDS = 10;
+const DEFAULT_PASSWORD = 'password123';
 
 async function main() {
   console.log('Starting database seed...');
 
+  const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
+
   const passenger1 = await prisma.user.upsert({
     where: { email: 'alice.passenger@uberlite.local' },
-    update: {},
+    update: {
+      password: hashedPassword,
+    },
     create: {
       email: 'alice.passenger@uberlite.local',
       name: 'Alice Johnson',
-      password: 'hashed_password_123',
+      password: hashedPassword,
       phone: '+919876543210',
       role: Role.PASSENGER,
     },
@@ -19,11 +26,13 @@ async function main() {
 
   const passenger2 = await prisma.user.upsert({
     where: { email: 'bob.passenger@uberlite.local' },
-    update: {},
+    update: {
+      password: hashedPassword,
+    },
     create: {
       email: 'bob.passenger@uberlite.local',
       name: 'Bob Smith',
-      password: 'hashed_password_456',
+      password: hashedPassword,
       phone: '+919876543211',
       role: Role.PASSENGER,
     },
@@ -33,11 +42,13 @@ async function main() {
 
   const driverUser1 = await prisma.user.upsert({
     where: { email: 'rajesh.driver@uberlite.local' },
-    update: {},
+    update: {
+      password: hashedPassword,
+    },
     create: {
       email: 'rajesh.driver@uberlite.local',
       name: 'Rajesh Kumar',
-      password: 'hashed_password_789',
+      password: hashedPassword,
       phone: '+919876543220',
       role: Role.DRIVER,
     },
@@ -66,11 +77,13 @@ async function main() {
 
   const driverUser2 = await prisma.user.upsert({
     where: { email: 'vikram.driver@uberlite.local' },
-    update: {},
+    update: {
+      password: hashedPassword,
+    },
     create: {
       email: 'vikram.driver@uberlite.local',
       name: 'Vikram Singh',
-      password: 'hashed_password_101',
+      password: hashedPassword,
       phone: '+919876543221',
       role: Role.DRIVER,
     },
@@ -99,11 +112,13 @@ async function main() {
 
   const driverUser3 = await prisma.user.upsert({
     where: { email: 'amit.driver@uberlite.local' },
-    update: {},
+    update: {
+      password: hashedPassword,
+    },
     create: {
       email: 'amit.driver@uberlite.local',
       name: 'Amit Sharma',
-      password: 'hashed_password_202',
+      password: hashedPassword,
       phone: '+919876543222',
       role: Role.DRIVER,
     },
@@ -131,7 +146,7 @@ async function main() {
   });
 
   console.log(`Seeded drivers: ${driverUser1.name}, ${driverUser2.name}, ${driverUser3.name}`);
-  console.log('Database seed finished successfully.');
+  console.log('Database seed finished successfully. (Default password: password123)');
 }
 
 main()

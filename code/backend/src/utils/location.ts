@@ -236,3 +236,192 @@ export function findNearest<T>(
 
   return closest;
 }
+
+// ─── Location-Based Search Strategy (Task 39) ────────────────────────────────
+
+export interface BoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+/**
+ * Calculate a geographic bounding box [minLat, maxLat] and [minLng, maxLng]
+ * around a center point for a given search radius in kilometers.
+ * Applies a safety buffer factor (default 1.05) to ensure edge points are included.
+ */
+export function calculateBoundingBox(
+  origin: CoordinatesInput,
+  radiusKm: number,
+  safetyFactor: number = 1.05
+): BoundingBox {
+  const center = normalizeCoordinates(origin, 'Bounding box center');
+  if (radiusKm <= 0) {
+    return {
+      minLat: center.lat,
+      maxLat: center.lat,
+      minLng: center.lng,
+      maxLng: center.lng,
+    };
+  }
+
+  const effectiveRadius = radiusKm * safetyFactor;
+  // 1 degree of latitude in km: (PI * EARTH_RADIUS_KM) / 180 ≈ 111.1949 km
+  const kmPerLatDegree = (Math.PI * EARTH_RADIUS_KM) / 180;
+  const deltaLat = effectiveRadius / kmPerLatDegree;
+
+  const minLat = Math.max(-90, center.lat - deltaLat);
+  const maxLat = Math.min(90, center.lat + deltaLat);
+
+  let minLng: number;
+  let maxLng: number;
+
+  // If the bounding circle encompasses either pole, all longitudes are spanned
+  if (center.lat + deltaLat >= 90 || center.lat - deltaLat <= -90) {
+    minLng = -180;
+    maxLng = 180;
+  } else {
+    // Longitude distance varies by latitude: cos(latitude)
+    const radLat = toRadians(center.lat);
+    const cosLat = Math.cos(radLat);
+
+    let deltaLng: number;
+    if (Math.abs(cosLat) < 0.0001) {
+      deltaLng = 180;
+    } else {
+      deltaLng = effectiveRadius / (kmPerLatDegree * cosLat);
+    }
+
+    minLng = Math.max(-180, center.lng - deltaLng);
+    maxLng = Math.min(180, center.lng + deltaLng);
+  }
+
+  return {
+    minLat: parseFloat(minLat.toFixed(6)),
+    maxLat: parseFloat(maxLat.toFixed(6)),
+    minLng: parseFloat(minLng.toFixed(6)),
+    maxLng: parseFloat(maxLng.toFixed(6)),
+  };
+}
+
+/**
+ * Fast check whether a point lies within a bounding box.
+ */
+export function isWithinBoundingBox(
+  point: CoordinatesInput,
+  box: BoundingBox
+): boolean {
+  const coords = normalizeCoordinates(point, 'Point');
+  return (
+    coords.lat >= box.minLat &&
+    coords.lat <= box.maxLat &&
+    coords.lng >= box.minLng &&
+    coords.lng <= box.maxLng
+  );
+}
+
+export interface SpatialGridItem<T> {
+  id: string;
+  lat: number;
+  lng: number;
+  data: T;
+}
+
+/**
+ * 2D Spatial Grid Index for high-performance location-based lookups.
+ * Discretizes coordinates into spatial grid cells (buckets) so queries
+ * only scan candidates in adjacent cells rather than performing a linear O(N) scan.
+ */
+export class SpatialGridIndex<T> {
+  private cellSizeDegrees: number;
+  private grid: Map<string, Array<SpatialGridItem<T>>>;
+
+  constructor(cellSizeKm: number = 5.0) {
+    this.cellSizeDegrees = Math.max(0.01, cellSizeKm / 111.0);
+    this.grid = new Map();
+  }
+
+  private getCellKey(lat: number, lng: number): string {
+    const cellX = Math.floor(lat / this.cellSizeDegrees);
+    const cellY = Math.floor(lng / this.cellSizeDegrees);
+    return `${cellX}:${cellY}`;
+  }
+
+  clear(): void {
+    this.grid.clear();
+  }
+
+  insert(id: string, lat: number, lng: number, data: T): void {
+    if (!isValidLatitude(lat) || !isValidLongitude(lng)) return;
+    const key = this.getCellKey(lat, lng);
+    let cell = this.grid.get(key);
+    if (!cell) {
+      cell = [];
+      this.grid.set(key, cell);
+    }
+    const existingIndex = cell.findIndex((item) => item.id === id);
+    if (existingIndex >= 0) {
+      cell[existingIndex] = { id, lat, lng, data };
+    } else {
+      cell.push({ id, lat, lng, data });
+    }
+  }
+
+  remove(id: string): void {
+    for (const cell of this.grid.values()) {
+      const idx = cell.findIndex((item) => item.id === id);
+      if (idx >= 0) {
+        cell.splice(idx, 1);
+        break;
+      }
+    }
+  }
+
+  queryRadius(
+    center: CoordinatesInput,
+    radiusKm: number
+  ): Array<SpatialGridItem<T> & { distanceKm: number }> {
+    const coords = normalizeCoordinates(center, 'Query Center');
+    const box = calculateBoundingBox(coords, radiusKm, 1.0);
+
+    const minCellX = Math.floor(box.minLat / this.cellSizeDegrees);
+    const maxCellX = Math.floor(box.maxLat / this.cellSizeDegrees);
+    const minCellY = Math.floor(box.minLng / this.cellSizeDegrees);
+    const maxCellY = Math.floor(box.maxLng / this.cellSizeDegrees);
+
+    const candidates: Array<SpatialGridItem<T> & { distanceKm: number }> = [];
+
+    for (let x = minCellX; x <= maxCellX; x++) {
+      for (let y = minCellY; y <= maxCellY; y++) {
+        const cell = this.grid.get(`${x}:${y}`);
+        if (!cell || cell.length === 0) continue;
+
+        for (const item of cell) {
+          const dist = calculateDistance(
+            coords,
+            { lat: item.lat, lng: item.lng },
+            { unit: 'km', decimals: 2 }
+          );
+          if (dist <= radiusKm) {
+            candidates.push({
+              ...item,
+              distanceKm: dist,
+            });
+          }
+        }
+      }
+    }
+
+    return candidates.sort((a, b) => a.distanceKm - b.distanceKm);
+  }
+
+  size(): number {
+    let count = 0;
+    for (const cell of this.grid.values()) {
+      count += cell.length;
+    }
+    return count;
+  }
+}
+
