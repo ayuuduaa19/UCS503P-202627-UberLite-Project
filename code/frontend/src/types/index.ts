@@ -33,6 +33,17 @@ export interface DriverProfile {
   currentLat?: number | null;
   currentLng?: number | null;
   rating: number;
+  updatedAt?: string;
+}
+
+export interface RideTrackingInfo {
+  driverDistanceToTargetKm: number;
+  estimatedArrivalMin: number;
+  targetType: 'PICKUP' | 'DROPOFF';
+  targetAddress: string;
+  targetCoords: { lat: number; lng: number };
+  driverCurrentLocation: { lat: number; lng: number };
+  lastDriverLocationUpdate: string | Date;
 }
 
 export interface Fare {
@@ -115,3 +126,27 @@ export interface ApiResponse<T = any> {
     details?: any;
   };
 }
+
+export interface RideHistoryFilterParams {
+  search?: string;
+  status?: RideStatus;
+  startDate?: string;
+  endDate?: string;
+  from?: string;
+  to?: string;
+  minFare?: number;
+  maxFare?: number;
+  vehicleType?: VehicleType;
+  rating?: number;
+  sortBy?: 'date' | 'fare' | 'distance' | 'createdAt' | 'totalFare' | 'distanceKm';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface RideEventPayload {
+  eventType: string;
+  ride: Ride;
+  timestamp: string;
+}
+

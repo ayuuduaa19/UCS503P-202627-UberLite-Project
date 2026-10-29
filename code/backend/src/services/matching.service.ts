@@ -12,6 +12,7 @@ import {
 } from '../utils/location';
 import { concurrencyCoordinator } from '../utils/concurrency';
 import { MatchingOptions } from '../validators/matching.validator';
+import { realtimeService } from './realtime.service';
 
 export interface CandidateDriver {
   driverId: string;
@@ -28,6 +29,7 @@ export interface CandidateDriver {
   currentLng: number;
   distanceKm: number;
   estimatedArrivalMin: number;
+  lastLocationUpdate?: Date | null;
 }
 
 export interface MatchResult {
@@ -125,14 +127,20 @@ export class MatchingService {
           currentLng: driver.currentLng,
           distanceKm,
           estimatedArrivalMin,
+          lastLocationUpdate: driver.updatedAt ?? null,
         });
       }
     }
 
-    // Sort ascending by distance, breaking ties with higher rating
+    // Sort ascending by distance; if distances are tied, prioritize drivers with fresher periodic location updates, then rating
     candidates.sort((a, b) => {
-      if (a.distanceKm !== b.distanceKm) {
+      if (Math.abs(a.distanceKm - b.distanceKm) > 0.001) {
         return a.distanceKm - b.distanceKm;
+      }
+      const timeA = a.lastLocationUpdate ? new Date(a.lastLocationUpdate).getTime() : 0;
+      const timeB = b.lastLocationUpdate ? new Date(b.lastLocationUpdate).getTime() : 0;
+      if (timeA !== timeB) {
+        return timeB - timeA;
       }
       return b.rating - a.rating;
     });
@@ -309,17 +317,26 @@ export class MatchingService {
         };
       };
 
+      let matchResult: MatchResult;
       if (typeof prisma.$transaction === 'function') {
         try {
-          return await prisma.$transaction(executeTx, { maxWait: 10000, timeout: 20000 });
+          matchResult = await prisma.$transaction(executeTx, { maxWait: 10000, timeout: 20000 });
         } catch (err: any) {
           if (err?.name === 'PrismaClientInitializationError') {
-            return await executeTx(prisma);
+            matchResult = await executeTx(prisma);
+          } else {
+            throw err;
           }
-          throw err;
         }
+      } else {
+        matchResult = await executeTx(prisma);
       }
-      return await executeTx(prisma);
+
+      if (matchResult?.ride) {
+        realtimeService.emitRideUpdate(matchResult.ride, RideStatus.MATCHED);
+      }
+
+      return matchResult;
     });
   }
 
@@ -468,6 +485,7 @@ export class MatchingService {
       currentLng: driver.currentLng!,
       distanceKm,
       estimatedArrivalMin,
+      lastLocationUpdate: driver.updatedAt ?? null,
     };
 
     return await this.executeDriverAssignmentTx(ride.id, candidateInfo, authenticatedPassengerId);

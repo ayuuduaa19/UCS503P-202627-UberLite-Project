@@ -6,17 +6,18 @@ import { prisma } from '../lib/prisma';
 
 export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
   try {
+    let token: string | undefined;
     const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
-      return next(new AppError('Authentication token is required', 401));
+    if (authHeader) {
+      if (!authHeader.startsWith('Bearer ')) {
+        return next(new AppError('Invalid authorization format. Format must be "Bearer <token>"', 401));
+      }
+      token = authHeader.split(' ')[1];
+    } else if (req.query && typeof req.query.token === 'string' && req.query.token.trim() !== '') {
+      token = req.query.token.trim();
     }
 
-    if (!authHeader.startsWith('Bearer ')) {
-      return next(new AppError('Invalid authorization format. Format must be "Bearer <token>"', 401));
-    }
-
-    const token = authHeader.split(' ')[1];
     if (!token || token.trim() === '') {
       return next(new AppError('Authentication token is required', 401));
     }

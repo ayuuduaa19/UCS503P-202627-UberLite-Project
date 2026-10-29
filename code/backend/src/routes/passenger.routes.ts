@@ -5,9 +5,11 @@ import {
   getPassengerProfile,
   getPassengerRides,
   getPassengerRideHistory,
+  streamPassengerRideEvents,
   getActiveRide,
   requestRide,
   getRideDetails,
+  getRideTracking,
   matchRideWithDriver,
   assignRideDriver,
   getNearbyDrivers,
@@ -23,7 +25,11 @@ router.use(authenticate, authorize(Role.PASSENGER));
 
 router.get('/profile', getPassengerProfile);
 
-// Ride history & active ride endpoints (Task #19 & #40)
+// Real-time ride status synchronization stream (Task #42)
+router.get('/rides/events', streamPassengerRideEvents);
+router.get('/rides/:id/events', streamPassengerRideEvents);
+
+// Ride history & active ride endpoints (Task #19 & #40 & #41)
 router.get('/rides/history', getPassengerRideHistory);
 router.get('/rides/active', getActiveRide);
 router.get('/rides', getPassengerRides);
@@ -31,6 +37,7 @@ router.post('/rides', requestRide);
 router.get('/rides/:id', getRideDetails);
 router.patch('/rides/:id/cancel', cancelRide);
 router.post('/rides/:id/cancel', cancelRide);
+router.get('/rides/:id/track', getRideTracking);
 
 // Feedback and rating endpoints (Task #20)
 router.post('/rides/:id/feedback', submitRideFeedback);

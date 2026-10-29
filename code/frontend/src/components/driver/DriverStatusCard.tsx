@@ -18,6 +18,9 @@ export const DriverStatusCard: React.FC = () => {
   const [currentLng, setCurrentLng] = useState<number>(ctxDriver?.currentLng ?? 77.2167);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'info' | 'success' | 'error' } | null>(null);
+  const [isPeriodicEnabled, setIsPeriodicEnabled] = useState<boolean>(true);
+  const [lastBroadcastAt, setLastBroadcastAt] = useState<Date | null>(null);
+  const [broadcastCount, setBroadcastCount] = useState<number>(0);
 
   // Load fresh profile from API if authenticated
   useEffect(() => {
@@ -43,7 +46,43 @@ export const DriverStatusCard: React.FC = () => {
           setIsAvailable(ctxDriver.isAvailable);
         }
       });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, ctxDriver]);
+
+  // Task 43: Periodic Driver Location Updates
+  // Automatically posts GPS telemetry updates to backend every 8 seconds when online
+  useEffect(() => {
+    if (!isAuthenticated || !isAvailable || !isPeriodicEnabled) return;
+
+    const timer = setInterval(() => {
+      // Simulate realistic micro-movement along roadway
+      const deltaLat = (Math.random() * 0.0004 - 0.0002);
+      const deltaLng = (Math.random() * 0.0004 - 0.0002);
+      const nextLat = parseFloat((currentLat + deltaLat).toFixed(5));
+      const nextLng = parseFloat((currentLng + deltaLng).toFixed(5));
+
+      apiClient
+        .updateDriverLocation(nextLat, nextLng)
+        .then((res) => {
+          setCurrentLat(nextLat);
+          setCurrentLng(nextLng);
+          setLastBroadcastAt(new Date());
+          setBroadcastCount((c) => c + 1);
+          if (res.data) {
+            setProfile((prev) => (prev ? { ...prev, currentLat: nextLat, currentLng: nextLng } : null));
+          }
+          updateDriverProfile({ currentLat: nextLat, currentLng: nextLng });
+        })
+        .catch(() => {
+          // Keep local telemetry alive even if disconnected
+          setCurrentLat(nextLat);
+          setCurrentLng(nextLng);
+          setLastBroadcastAt(new Date());
+          updateDriverProfile({ currentLat: nextLat, currentLng: nextLng });
+        });
+    }, 8000);
+
+    return () => clearInterval(timer);
+  }, [isAuthenticated, isAvailable, isPeriodicEnabled, currentLat, currentLng, updateDriverProfile]);
 
   const displayProfile = profile ?? ctxDriver;
 
@@ -119,6 +158,15 @@ export const DriverStatusCard: React.FC = () => {
         </div>
         <div className="status-toggle-box">
           <button
+            type="button"
+            className={`btn-periodic-toggle ${isPeriodicEnabled ? 'active' : ''}`}
+            onClick={() => setIsPeriodicEnabled(!isPeriodicEnabled)}
+            title="Toggle periodic background GPS updates"
+          >
+            <span className={`pulse-circle ${isPeriodicEnabled && isAvailable ? 'pulse-green' : 'pulse-amber'}`}></span>
+            <span>{isPeriodicEnabled ? 'Live GPS (8s)' : 'GPS Paused'}</span>
+          </button>
+          <button
             className={`btn-status-toggle ${isAvailable ? 'online' : 'offline'}`}
             onClick={handleToggleAvailability}
             disabled={isUpdating}
@@ -175,6 +223,19 @@ export const DriverStatusCard: React.FC = () => {
           <span className="telemetry-label">Current GPS</span>
           <span className="telemetry-val text-xs">
             {currentLat.toFixed(4)}, {currentLng.toFixed(4)}
+          </span>
+        </div>
+
+        <div className="telemetry-item">
+          <span className="telemetry-label">Periodic Telemetry</span>
+          <span className="telemetry-val text-xs">
+            {isPeriodicEnabled && isAvailable ? (
+              <span className="text-success font-semibold">
+                🛰️ Live Broadcasting ({broadcastCount} pings{lastBroadcastAt ? ' • active' : ''})
+              </span>
+            ) : (
+              <span className="text-muted">Paused / Inactive</span>
+            )}
           </span>
         </div>
       </div>

@@ -31,7 +31,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
               onClick={() => navigate('/passenger')}
             >
               <span className="nav-icon">👤</span>
-              Passenger Area
+              <span className="nav-text-desktop">Passenger Area</span>
+              <span className="nav-text-mobile">Passenger</span>
             </button>
           )}
           {(!isAuthenticated || user?.role === 'DRIVER') && (
@@ -40,7 +41,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
               onClick={() => navigate('/driver')}
             >
               <span className="nav-icon">🚗</span>
-              Driver Area
+              <span className="nav-text-desktop">Driver Area</span>
+              <span className="nav-text-mobile">Driver</span>
             </button>
           )}
         </nav>

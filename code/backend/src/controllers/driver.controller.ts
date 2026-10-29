@@ -5,12 +5,16 @@ import { driverService } from '../services/driver.service';
 import { fareService } from '../services/fare.service';
 import { rideService } from '../services/ride.service';
 import { feedbackService } from '../services/feedback.service';
+import { realtimeService } from '../services/realtime.service';
 import {
   updateLocationSchema,
   updateDriverStatusSchema,
 } from '../validators/driver.validator';
 import { completeRideFareSchema } from '../validators/fare.validator';
-import { rideHistoryQuerySchema } from '../validators/feedback.validator';
+import {
+  rideHistoryQuerySchema,
+  rideHistoryFilterSchema,
+} from '../validators/feedback.validator';
 import { idParamSchema, rideFilterQuerySchema } from '../validators/common.validator';
 
 
@@ -212,20 +216,55 @@ export const getDriverRides = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * Get completed ride history for the authenticated driver (Task #19)
+ * Get completed ride history for the authenticated driver with filtering & search (Task #19 & #41)
  */
 export const getDriverRideHistory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const parsedQuery = rideHistoryQuerySchema.parse(req.query || {});
-    const rides = await rideService.getDriverRideHistory(userId, parsedQuery.status);
+    const parsedQuery = rideHistoryFilterSchema.parse(req.query || {});
+    const rides = await rideService.getDriverRideHistory(userId, parsedQuery);
 
     return res.status(200).json({
       success: true,
       data: {
         rides,
         count: rides.length,
+        filters: parsedQuery,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Stream real-time ride status events for the authenticated driver (Task #42)
+ */
+export const streamDriverRideEvents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    let driverId: string | undefined;
+
+    try {
+      if (typeof prisma.driver?.findUnique === 'function') {
+        const driver = await prisma.driver.findUnique({
+          where: { userId },
+          select: { id: true },
+        });
+        driverId = driver?.id;
+      }
+    } catch {
+      // Driver profile lookup error tolerated for mock/offline environments
+    }
+
+    const clientId = `d-${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    realtimeService.registerClient({
+      id: clientId,
+      role: 'DRIVER',
+      userId,
+      driverId,
+      res,
     });
   } catch (error) {
     next(error);
