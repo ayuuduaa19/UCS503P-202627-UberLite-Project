@@ -12,7 +12,7 @@ export const PassengerDashboardStats: React.FC = () => {
     if (!isAuthenticated) return;
     setIsLoading(true);
     apiClient
-      .getPassengerRideHistory()
+      .getPassengerRides()
       .then((res) => {
         const ridesList: Ride[] =
           (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
@@ -28,9 +28,13 @@ export const PassengerDashboardStats: React.FC = () => {
     (sum, r) => sum + (r.fare?.totalFare ?? 0),
     0,
   );
-  const activeRide = safeRides.find(
-    (r) => r.status === 'REQUESTED' || r.status === 'MATCHED' || r.status === 'ACCEPTED' || r.status === 'IN_PROGRESS',
-  );
+  const activeRide = safeRides.find((r) => {
+    if (!['REQUESTED', 'MATCHED', 'ACCEPTED', 'IN_PROGRESS'].includes(r.status)) return false;
+    // Mirror backend stale-ride filter: ignore rides older than 2 hours
+    const isStale =
+      r.createdAt && Date.now() - new Date(r.createdAt).getTime() > 2 * 60 * 60 * 1000;
+    return !isStale;
+  });
 
   return (
     <div className="dashboard-stats-banner">

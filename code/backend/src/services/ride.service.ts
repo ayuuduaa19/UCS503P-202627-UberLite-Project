@@ -51,11 +51,15 @@ export class RideService {
 
         if (Array.isArray(rides)) {
           return (
-            rides.find(
-              (r) =>
-                r.passengerId === passengerId &&
-                RideService.ACTIVE_STATUSES.includes(r.status)
-            ) || null
+            rides.find((r) => {
+              if (r.passengerId !== passengerId || !RideService.ACTIVE_STATUSES.includes(r.status)) {
+                return false;
+              }
+              const isStale =
+                r.createdAt &&
+                Date.now() - new Date(r.createdAt).getTime() > 2 * 60 * 60 * 1000;
+              return !isStale;
+            }) || null
           );
         }
       }
@@ -107,7 +111,7 @@ export class RideService {
         });
 
         if (Array.isArray(rides)) {
-          const activeStatuses = [
+          const activeStatuses: RideStatus[] = [
             RideStatus.MATCHED,
             RideStatus.ACCEPTED,
             RideStatus.IN_PROGRESS,
@@ -145,7 +149,14 @@ export class RideService {
       if (!options?.allowConcurrent) {
         const activeRide = await this.getActiveRideForPassenger(passengerId).catch(() => null);
         if (activeRide) {
-          throw new AppError('Passenger already has an active ride in progress', 409);
+          const isStale =
+            activeRide.createdAt &&
+            Date.now() - new Date(activeRide.createdAt).getTime() > 2 * 60 * 60 * 1000;
+          if (isStale) {
+            await this.cancelRide(activeRide.id, passengerId).catch(() => null);
+          } else {
+            throw new AppError('Passenger already has an active ride in progress', 409);
+          }
         }
       }
 
@@ -293,10 +304,20 @@ export class RideService {
             vehicleType: true,
             vehicleModel: true,
             vehiclePlate: true,
+            vehicleColor: true,
             rating: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
           },
         },
         fare: true,
+        feedbacks: true,
       },
     });
 
@@ -702,6 +723,107 @@ export class RideService {
 
       const [cancelledRide] = await prisma.$transaction(updates);
       return cancelledRide;
+    });
+  }
+
+  /**
+   * Advance ride to the next status (passenger-initiated, for demo/testing).
+   *
+   * Supported transitions:
+   *   MATCHED     → ACCEPTED
+   *   ACCEPTED    → IN_PROGRESS
+   *   IN_PROGRESS → COMPLETED (also frees up the driver)
+   *
+   * Only the ride's passenger may call this.
+   */
+  async advanceRideStatus(rideId: string, passengerId: string) {
+    return concurrencyCoordinator.withLock(`ride:${rideId}`, async () => {
+      const ride = await prisma.ride.findUnique({
+        where: { id: rideId },
+        include: {
+          driver: {
+            select: {
+              id: true,
+              vehicleType: true,
+              vehicleModel: true,
+              vehiclePlate: true,
+              vehicleColor: true,
+              rating: true,
+              user: {
+                select: { id: true, name: true, phone: true, email: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!ride) {
+        throw new AppError('Ride not found', 404);
+      }
+
+      if (ride.passengerId !== passengerId) {
+        throw new AppError('Unauthorized: Ride belongs to a different passenger', 403);
+      }
+
+      const transitions: Record<string, RideStatus> = {
+        MATCHED: RideStatus.ACCEPTED,
+        ACCEPTED: RideStatus.IN_PROGRESS,
+        IN_PROGRESS: RideStatus.COMPLETED,
+      };
+
+      const nextStatus = transitions[ride.status];
+      if (!nextStatus) {
+        throw new AppError(
+          `Cannot advance ride from status '${ride.status}'. ` +
+            `Allowed statuses: MATCHED, ACCEPTED, IN_PROGRESS`,
+          400
+        );
+      }
+
+      const data: Record<string, any> = { status: nextStatus };
+      if (nextStatus === RideStatus.ACCEPTED) data.acceptedAt = new Date();
+      if (nextStatus === RideStatus.IN_PROGRESS) data.startedAt = new Date();
+      if (nextStatus === RideStatus.COMPLETED) data.completedAt = new Date();
+
+      const txOps: any[] = [
+        prisma.ride.update({
+          where: { id: rideId },
+          data,
+          include: {
+            passenger: {
+              select: { id: true, name: true, phone: true, email: true },
+            },
+            driver: {
+              select: {
+                id: true,
+                vehicleType: true,
+                vehicleModel: true,
+                vehiclePlate: true,
+                vehicleColor: true,
+                rating: true,
+                user: {
+                  select: { id: true, name: true, phone: true, email: true },
+                },
+              },
+            },
+            fare: true,
+            feedbacks: true,
+          },
+        }),
+      ];
+
+      // When completing, free the driver for new rides
+      if (nextStatus === RideStatus.COMPLETED && ride.driverId) {
+        txOps.push(
+          prisma.driver.update({
+            where: { id: ride.driverId },
+            data: { isAvailable: true },
+          })
+        );
+      }
+
+      const [updatedRide] = await prisma.$transaction(txOps);
+      return updatedRide;
     });
   }
 }

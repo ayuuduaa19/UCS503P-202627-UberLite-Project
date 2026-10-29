@@ -20,13 +20,15 @@ export const IncomingDispatchCard: React.FC<IncomingDispatchCardProps> = ({
   const [countdown, setCountdown] = useState<number>(ACCEPTANCE_TIMEOUT_SEC);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Countdown timer — auto-reject when it reaches 0
+  // Countdown timer — auto-reject via API when it reaches 0
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
           timerRef.current = null;
+          // Actually reject via API so the ride goes back to REQUESTED
+          apiClient.rejectRide(ride.id).catch(() => {});
           onRejected();
           return 0;
         }

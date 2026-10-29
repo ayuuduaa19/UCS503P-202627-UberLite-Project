@@ -62,6 +62,9 @@ class ApiClient {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 401) {
+        this.removeToken();
+      }
       const errorMessage =
         data?.error?.message ||
         data?.message ||
@@ -112,8 +115,9 @@ class ApiClient {
   public async login(email: string, password: string): Promise<ApiResponse<AuthResponse>> {
     const res = await this.post<AuthResponse>('/api/auth/login', { email, password });
     if (res.data?.token) {
+      const driver = res.data.driver || (res.data.user as any)?.driverProfile || null;
       this.setToken(res.data.token);
-      this.setStoredUser(res.data.user, res.data.driver);
+      this.setStoredUser(res.data.user, driver);
     }
     return res;
   }
@@ -176,6 +180,10 @@ class ApiClient {
 
   public async matchRide(rideId: string): Promise<ApiResponse<Ride>> {
     return this.post<Ride>(`/api/passenger/rides/${rideId}/match`);
+  }
+
+  public async cancelRide(rideId: string): Promise<ApiResponse<Ride>> {
+    return this.patch<Ride>(`/api/passenger/rides/${rideId}/cancel`);
   }
 
   public async estimateFare(payload: {

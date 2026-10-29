@@ -7,7 +7,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
-  const { user, driver, isAuthenticated, logout, setDemoUser } = useAuth();
+  const { user, driver, isAuthenticated, logout } = useAuth();
   const { currentPath, navigate } = useRouter();
 
   const isPassengerView = currentPath.startsWith('/passenger') || currentPath === '/';
@@ -25,20 +25,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
         </div>
 
         <nav className="nav-links">
-          <button
-            className={`nav-item ${isPassengerView ? 'active' : ''}`}
-            onClick={() => navigate('/passenger')}
-          >
-            <span className="nav-icon">👤</span>
-            Passenger Area
-          </button>
-          <button
-            className={`nav-item ${isDriverView ? 'active' : ''}`}
-            onClick={() => navigate('/driver')}
-          >
-            <span className="nav-icon">🚗</span>
-            Driver Area
-          </button>
+          {(!isAuthenticated || user?.role === 'PASSENGER') && (
+            <button
+              className={`nav-item ${isPassengerView ? 'active' : ''}`}
+              onClick={() => navigate('/passenger')}
+            >
+              <span className="nav-icon">👤</span>
+              Passenger Area
+            </button>
+          )}
+          {(!isAuthenticated || user?.role === 'DRIVER') && (
+            <button
+              className={`nav-item ${isDriverView ? 'active' : ''}`}
+              onClick={() => navigate('/driver')}
+            >
+              <span className="nav-icon">🚗</span>
+              Driver Area
+            </button>
+          )}
         </nav>
 
         <div className="nav-actions">
@@ -59,24 +63,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
             </div>
           ) : (
             <div className="auth-buttons">
-              <div className="demo-switchers">
-                <button
-                  className="btn btn-xs btn-ghost"
-                  title="Demo Passenger"
-                  onClick={() => setDemoUser('PASSENGER')}
-                >
-                  ⚡ Alice (Passenger)
-                </button>
-                <button
-                  className="btn btn-xs btn-ghost"
-                  title="Demo Driver"
-                  onClick={() => setDemoUser('DRIVER')}
-                >
-                  ⚡ Bob (Driver)
-                </button>
-              </div>
               <button className="btn btn-sm btn-primary" onClick={onOpenAuth}>
-                Sign In / Register
+                Log In / Register
               </button>
             </div>
           )}

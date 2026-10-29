@@ -103,7 +103,11 @@ export const RideBookingCard: React.FC<RideBookingCardProps> = ({ onRideCreated,
       if (err.statusCode === 401) {
         onOpenAuth();
       }
-      setErrorMessage(err.message || 'Failed to request ride');
+      if (err.statusCode === 409) {
+        setErrorMessage('You already have an active ride in progress. Please track or cancel your existing ride on the right before booking a new one.');
+      } else {
+        setErrorMessage(err.message || 'Failed to request ride');
+      }
     } finally {
       setIsLoading(false);
     }

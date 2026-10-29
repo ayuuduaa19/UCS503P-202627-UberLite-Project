@@ -173,44 +173,15 @@ export const requestRide = async (req: Request, res: Response, next: NextFunctio
     const passengerId = req.user!.id;
     const validatedData = createRideSchema.parse(req.body);
 
-    // Step 1: Persist the initial ride record via rideService with active ride coordination.
+    // Create the ride record with status REQUESTED
     const ride = await rideService.createRide(passengerId, validatedData);
-
-    // Step 2: Search for the best available driver via the matching module.
-    const pickupLat = typeof validatedData.pickupLat === 'number' ? validatedData.pickupLat : 0.0;
-    const pickupLng = typeof validatedData.pickupLng === 'number' ? validatedData.pickupLng : 0.0;
-
-    let nearestDriver: any = null;
-    try {
-      nearestDriver = await matchingService.findNearestDriver({ lat: pickupLat, lng: pickupLng });
-    } catch (err: any) {
-      nearestDriver = null;
-    }
-
-    if (!nearestDriver) {
-      // No driver available — return the ride in REQUESTED state.
-      return res.status(201).json({
-        success: true,
-        message: 'Ride requested successfully',
-        data: {
-          ride,
-          matched: false,
-        },
-      });
-    }
-
-    // Step 3: Match and record the driver using the full matching service
-    //         (runs inside a Prisma transaction with double-booking protection).
-    const matchResult = await matchingService.matchDriverForRide(ride.id, {}, passengerId);
 
     return res.status(201).json({
       success: true,
-      message: 'Ride requested and driver matched successfully',
+      message: 'Ride requested successfully',
       data: {
-        ride: matchResult.ride,
-        matched: true,
-        matchedAt: matchResult.ride.updatedAt,
-        matchedDriver: matchResult.matchedDriver,
+        ride,
+        matched: false,
       },
     });
   } catch (error) {
@@ -343,6 +314,27 @@ export const estimateFare = async (req: Request, res: Response, next: NextFuncti
       message: 'Fare estimated successfully',
       data: {
         fareEstimate,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Cancel an active ride for the authenticated passenger
+ */
+export const cancelRide = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const userId = req.user!.id;
+    const cancelledRide = await rideService.cancelRide(id, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ride cancelled successfully',
+      data: {
+        ride: cancelledRide,
       },
     });
   } catch (error) {

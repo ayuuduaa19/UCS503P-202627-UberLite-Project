@@ -311,7 +311,7 @@ export class MatchingService {
 
       if (typeof prisma.$transaction === 'function') {
         try {
-          return await prisma.$transaction(executeTx);
+          return await prisma.$transaction(executeTx, { maxWait: 10000, timeout: 20000 });
         } catch (err: any) {
           if (err?.name === 'PrismaClientInitializationError') {
             return await executeTx(prisma);

@@ -36,7 +36,12 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
       }
       const res = await apiClient.getPassengerRides();
       const rides: Ride[] = (res.data as any)?.rides ?? (Array.isArray(res.data) ? res.data : []);
-      const active = rides.find((r) => ACTIVE_STATUSES.has(r.status));
+      const active = rides.find((r) => {
+        if (!ACTIVE_STATUSES.has(r.status)) return false;
+        const isStale =
+          r.createdAt && Date.now() - new Date(r.createdAt).getTime() > 2 * 60 * 60 * 1000;
+        return !isStale;
+      });
       setActiveRide(active ?? null);
     } catch {
       // Ignore network error on initial load
@@ -66,6 +71,8 @@ export const PassengerArea: React.FC<PassengerAreaProps> = ({ onOpenAuth }) => {
           stopPolling();
           if (updated.status === 'COMPLETED') {
             setFeedbackRideId(updated.id);
+          } else {
+            setActiveRide(null);
           }
         }
       }

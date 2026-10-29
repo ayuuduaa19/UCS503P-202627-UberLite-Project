@@ -25,6 +25,7 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
 }) => {
   const [isMatching, setIsMatching] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'info' | 'error' | 'success' } | null>(null);
 
   const getStepIndex = (status: RideStatus) => {
@@ -60,6 +61,26 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
     }
   };
 
+  const handleCancelRide = async () => {
+    setIsCancelling(true);
+    setMessage(null);
+    try {
+      const res = await apiClient.cancelRide(ride.id);
+      const updated = (res.data as any)?.ride ?? res.data;
+      if (updated) {
+        onRideUpdated?.(updated);
+      }
+      onRefresh();
+    } catch (err: any) {
+      setMessage({
+        text: err.message || 'Failed to cancel ride',
+        type: 'error',
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const handleRefreshClick = async () => {
     setIsRefreshing(true);
     try {
@@ -81,13 +102,26 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
           </span>
           <span className="ride-id-text text-muted text-xs">ID: {ride.id.slice(0, 8)}...</span>
         </div>
-        <button
-          className="btn btn-xs btn-outline"
-          onClick={handleRefreshClick}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? '↻ Refreshing...' : '🔄 Refresh Status'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          {['REQUESTED', 'MATCHED'].includes(ride.status) && (
+            <button
+              className="btn btn-xs btn-outline"
+              onClick={handleCancelRide}
+              disabled={isCancelling}
+              style={{ color: '#ef4444', borderColor: '#ef4444' }}
+              title="Cancel Ride"
+            >
+              {isCancelling ? 'Cancelling...' : '✕ Cancel'}
+            </button>
+          )}
+          <button
+            className="btn btn-xs btn-outline"
+            onClick={handleRefreshClick}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? '↻ Refreshing...' : '🔄 Refresh Status'}
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -183,13 +217,23 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({
             <div className="dispatch-text">
               <span>Searching for nearest available driver within 10 km...</span>
             </div>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={handleTriggerMatch}
-              disabled={isMatching}
-            >
-              {isMatching ? 'Matching...' : 'Auto-Match Driver'}
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={handleTriggerMatch}
+                disabled={isMatching}
+              >
+                {isMatching ? 'Matching...' : 'Auto-Match Driver'}
+              </button>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={handleCancelRide}
+                disabled={isCancelling}
+                style={{ color: '#ef4444', borderColor: '#ef4444' }}
+              >
+                {isCancelling ? 'Cancelling...' : 'Cancel Ride'}
+              </button>
+            </div>
           </div>
         )
       )}

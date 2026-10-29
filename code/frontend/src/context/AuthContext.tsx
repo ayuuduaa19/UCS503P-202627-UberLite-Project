@@ -40,9 +40,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const stored = apiClient.getStoredUser();
 
     if (storedToken && stored) {
-      setToken(storedToken);
-      setUser(stored.user);
-      setDriver(stored.driver || null);
+      if (storedToken.startsWith('demo-jwt-')) {
+        apiClient.removeToken();
+        setToken(null);
+        setUser(null);
+        setDriver(null);
+      } else {
+        setToken(storedToken);
+        setUser(stored.user);
+        setDriver(stored.driver || (stored.user as any)?.driverProfile || null);
+      }
     }
     setIsLoading(false);
   }, []);
@@ -52,8 +59,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await apiClient.login(email, password);
       if (res.data) {
+        const driverProfile = res.data.driver || (res.data.user as any)?.driverProfile || null;
         setUser(res.data.user);
-        setDriver(res.data.driver || null);
+        setDriver(driverProfile);
         setToken(res.data.token);
       }
     } catch (err) {

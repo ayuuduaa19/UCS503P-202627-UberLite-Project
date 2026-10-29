@@ -15,6 +15,7 @@ import {
   estimateFare,
   submitRideFeedback,
   getRideFeedback,
+  cancelRide,
 } from '../controllers/passenger.controller';
 
 const router = Router();
@@ -28,6 +29,8 @@ router.get('/rides/active', getActiveRide);
 router.get('/rides', getPassengerRides);
 router.post('/rides', requestRide);
 router.get('/rides/:id', getRideDetails);
+router.patch('/rides/:id/cancel', cancelRide);
+router.post('/rides/:id/cancel', cancelRide);
 
 // Feedback and rating endpoints (Task #20)
 router.post('/rides/:id/feedback', submitRideFeedback);

@@ -10,7 +10,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { login, register, setDemoUser } = useAuth();
+  const { login, register } = useAuth();
   const { navigate, setActiveTab } = useRouter();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [role, setRole] = useState<'PASSENGER' | 'DRIVER'>('PASSENGER');
@@ -74,16 +74,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleQuickDemo = (demoRole: 'PASSENGER' | 'DRIVER') => {
-    setDemoUser(demoRole);
-    if (demoRole === 'DRIVER') {
-      navigate('/driver');
-      setActiveTab('status');
+  const handlePresetFill = (presetRole: 'PASSENGER' | 'DRIVER') => {
+    setTab('login');
+    setErrorMessage(null);
+    if (presetRole === 'PASSENGER') {
+      setEmail('alice.passenger@uberlite.local');
+      setPassword('password123');
     } else {
-      navigate('/passenger');
-      setActiveTab('book');
+      setEmail('rajesh.driver@uberlite.local');
+      setPassword('password123');
     }
-    onClose();
   };
 
   return (
@@ -268,21 +268,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         </form>
 
         <div className="quick-demo-footer">
-          <span className="text-xs text-muted">Or log in instantly using preset accounts:</span>
+          <span className="text-xs text-muted">Demo credentials (click to fill inputs):</span>
           <div className="demo-preset-row">
             <button
               type="button"
               className="btn btn-xs btn-outline"
-              onClick={() => handleQuickDemo('PASSENGER')}
+              onClick={() => handlePresetFill('PASSENGER')}
             >
               👤 Alice (Passenger)
             </button>
             <button
               type="button"
               className="btn btn-xs btn-outline"
-              onClick={() => handleQuickDemo('DRIVER')}
+              onClick={() => handlePresetFill('DRIVER')}
             >
-              🚗 Bob (Driver)
+              🚗 Rajesh (Driver)
             </button>
           </div>
         </div>
